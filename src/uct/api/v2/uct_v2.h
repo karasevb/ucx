@@ -136,10 +136,12 @@ typedef enum {
  * @brief field mask of @ref uct_iface_is_reachable_v2
  */
 typedef enum {
-    UCT_IFACE_IS_REACHABLE_FIELD_DEV_ADDR   = UCS_BIT(0), /**< dev_addr field */
-    UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR = UCS_BIT(1), /**< iface_addr field */
-    UCT_IFACE_IS_REACHABLE_FIELD_ERROR_STR  = UCS_BIT(2), /**< error_str field */
+    UCT_IFACE_IS_REACHABLE_FIELD_DEV_ADDR     = UCS_BIT(0), /**< dev_addr field */
+    UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR   = UCS_BIT(1), /**< iface_addr field */
+    UCT_IFACE_IS_REACHABLE_FIELD_INFO_STR     = UCS_BIT(2), /**< info_str field */
+    UCT_IFACE_IS_REACHABLE_FIELD_INFO_STR_LEN = UCS_BIT(3)  /**< info_str_len field */
 } uct_iface_is_reachable_field_mask_t;
+
 
 typedef enum {
     /**
@@ -201,6 +203,7 @@ typedef struct uct_md_mem_dereg_params {
     uct_completion_t             *comp;
 } uct_md_mem_dereg_params_t;
 
+
 /**
  * @ingroup UCT_RESOURCE
  * @brief Operation parameters passed to @ref uct_iface_is_reachable_v2.
@@ -218,24 +221,31 @@ typedef struct uct_iface_is_reachable_params {
      * Device address to check reachability to. It is not set
      * if iface_attr.dev_addr_len == 0, and must be set otherwise.
      */
-    uct_device_addr_t            *dev_addr;
+    const uct_device_addr_t      *dev_addr;
 
     /**
      * Interface address to check reachability to. It is not set if
      * iface_attr.iface_addr_len == 0, and must be set otherwise.
      */
-    uct_iface_addr_t             *iface_addr;
+    const uct_iface_addr_t       *iface_addr;
 
     /**
-     * Filled with a pointer to the error string buffer.
+     * User-provided pointer to a string buffer.
+     * This value is optional.
+     * The function @ref uct_iface_is_reachable_v2 fills this buffer with the 
+     * null-terminated information string why the remote address is not 
+     * reachable if the return value is 0.
      */
-    char                         *error_str;
+    char                         *info_str;
 
     /**
-     * The length of the error string buffer is provided in bytes.
+     * The length of the @a info_str is provided in bytes.
+     * This value is optional and must be specified in conjunction with 
+     * @a info_str.
      */
-    size_t                        error_str_len;
+    size_t                        info_str_len;
 } uct_iface_is_reachable_params_t;
+
 
 /**
  * @ingroup UCT_RESOURCE
