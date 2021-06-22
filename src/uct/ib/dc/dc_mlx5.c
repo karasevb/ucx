@@ -899,20 +899,60 @@ void uct_dc_mlx5_iface_init_version(uct_dc_mlx5_iface_t *iface, uct_md_h md)
     }
 }
 
+int uct_dc_mlx5_iface_is_reachable_v2(const uct_iface_h tl_iface,
+                                      uct_iface_is_reachable_params_t *params)
+{
+    uct_dc_mlx5_iface_addr_t *addr = (uct_dc_mlx5_iface_addr_t *)params->iface_addr;
+    uct_dc_mlx5_iface_t UCS_V_UNUSED *iface;
+    char *info_str      = UCT_IFACE_IS_REACHABLE_PARAM_VALUE(params, info_str,
+                                                             INFO_STR, NULL);
+    size_t info_str_len = UCT_IFACE_IS_REACHABLE_PARAM_VALUE(params, info_str_len,
+                                                             INFO_STR_LEN, 0);
+
+    ucs_assert_always(!(!!info_str ^ !!info_str_len));
+
+    iface = ucs_derived_of(tl_iface, uct_dc_mlx5_iface_t);
+    ucs_assert_always(params->field_mask &
+                      UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR);
+
+    if ((addr->flags & UCT_DC_MLX5_IFACE_ADDR_DC_VERS) != iface->version_flag) {
+        if (info_str) {
+            ucs_snprintf_safe(info_str, info_str_len,
+                             "mismatch version %d (expected %d)",
+                             addr->flags & UCT_DC_MLX5_IFACE_ADDR_DC_VERS,
+                             iface->version_flag);
+        }
+        return 0;
+    }
+
+    if (UCT_DC_MLX5_IFACE_ADDR_TM_ENABLED(addr) !=
+        UCT_RC_MLX5_TM_ENABLED(&iface->super)) {
+        if (info_str) {
+                ucs_snprintf_safe(params->info_str, params->info_str_len,
+                                  "HW TM configuration is %s (%s expected)",
+                                  UCT_DC_MLX5_IFACE_ADDR_TM_ENABLED(addr) ? "enable" : "disable",
+                                  UCT_RC_MLX5_TM_ENABLED(&iface->super) ? "enable" : "disable");
+        }
+        return 0;
+    }
+
+    return uct_ib_iface_is_reachable_v2(tl_iface, params);
+}
+
 int uct_dc_mlx5_iface_is_reachable(const uct_iface_h tl_iface,
                                    const uct_device_addr_t *dev_addr,
                                    const uct_iface_addr_t *iface_addr)
 {
-    uct_dc_mlx5_iface_addr_t *addr = (uct_dc_mlx5_iface_addr_t *)iface_addr;
-    uct_dc_mlx5_iface_t UCS_V_UNUSED *iface;
+    uct_iface_is_reachable_params_t params;
 
-    iface = ucs_derived_of(tl_iface, uct_dc_mlx5_iface_t);
-    ucs_assert_always(iface_addr != NULL);
+    params.field_mask =
+        (dev_addr   == NULL ? 0 : UCT_IFACE_IS_REACHABLE_FIELD_DEV_ADDR) |
+        (iface_addr == NULL ? 0 : UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR);
 
-    return ((addr->flags & UCT_DC_MLX5_IFACE_ADDR_DC_VERS) == iface->version_flag) &&
-           (UCT_DC_MLX5_IFACE_ADDR_TM_ENABLED(addr) ==
-            UCT_RC_MLX5_TM_ENABLED(&iface->super)) &&
-           uct_ib_iface_is_reachable(tl_iface, dev_addr, iface_addr);
+    params.dev_addr   = dev_addr;
+    params.iface_addr = iface_addr;
+
+    return uct_dc_mlx5_iface_is_reachable_v2(tl_iface, &params);
 }
 
 ucs_status_t
@@ -1263,6 +1303,7 @@ static uct_iface_ops_t uct_dc_mlx5_iface_tl_ops = {
     .iface_get_device_address = uct_ib_iface_get_device_address,
     .iface_is_reachable       = uct_dc_mlx5_iface_is_reachable,
     .iface_get_address        = uct_dc_mlx5_iface_get_address,
+    .iface_is_reachable_v2    = uct_dc_mlx5_iface_is_reachable_v2,
 };
 
 static UCS_CLASS_INIT_FUNC(uct_dc_mlx5_iface_t, uct_md_h tl_md, uct_worker_h worker,

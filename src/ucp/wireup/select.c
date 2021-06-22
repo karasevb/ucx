@@ -16,6 +16,7 @@
 #include <ucs/algorithm/qsort_r.h>
 #include <ucs/datastruct/queue.h>
 #include <ucs/sys/sock.h>
+#include <ucs/datastruct/string_set.h>
 #include <ucp/core/ucp_ep.inl>
 #include <string.h>
 #include <inttypes.h>
@@ -311,6 +312,16 @@ static UCS_F_NOINLINE ucs_status_t ucp_wireup_select_transport(
     int is_reachable;
     double score;
     uint8_t priority;
+    ucs_status_t status = UCS_OK;
+
+    // TODO
+    char *info_str_ptr;
+    char *is_reachable_str;
+    char info_str_tmp[1024];
+    ucs_string_buffer_t is_reachable_strb;
+    size_t info_str_len = 1024;
+    ucs_string_set_t is_reachable_sset;
+    ucs_log_level_t log_level;
 
     p            = tls_info;
     endp         = tls_info + sizeof(tls_info) - 1;
@@ -318,6 +329,7 @@ static UCS_F_NOINLINE ucs_status_t ucp_wireup_select_transport(
     UCS_BITMAP_AND_INPLACE(&tl_bitmap, select_params->tl_bitmap);
     UCS_BITMAP_AND_INPLACE(&tl_bitmap, context->tl_bitmap);
     show_error   = (select_params->show_error && show_error);
+    ucs_string_set_init(&is_reachable_sset);
 
     /* Check which remote addresses satisfy the criteria */
     addr_index_map = 0;
@@ -479,8 +491,17 @@ static UCS_F_NOINLINE ucs_status_t ucp_wireup_select_transport(
         is_reachable = 0;
         ucs_for_each_bit(addr_index, rsc_addr_index_map) {
             ae = &address->address_list[addr_index];
+            info_str_tmp[0] = '\0';
             if (!ucp_wireup_is_reachable(ep, select_params->ep_init_flags,
-                                         rsc_index, ae)) {
+                                         rsc_index, ae,
+                                         info_str_tmp,
+                                         info_str_len)) {
+                if (strlen(info_str_tmp)) {
+                    ucs_string_set_addf(&is_reachable_sset, "no %s transport to %s: " UCT_TL_RESOURCE_DESC_FMT " - %s",
+                                        criteria->title, address->name,
+                                        UCT_TL_RESOURCE_DESC_ARG(resource), info_str_tmp);
+                }
+
                 /* Must be reachable device address, on same transport */
                 continue;
             }
@@ -520,12 +541,26 @@ out:
     }
 
     if (!found) {
-        if (show_error) {
-            ucs_error("no %s transport to %s: %s", criteria->title,
-                      address->name, tls_info);
+        log_level = show_error ? UCS_LOG_LEVEL_ERROR : UCS_LOG_LEVEL_DIAG;
+        ucs_string_buffer_init(&is_reachable_strb);
+        ucs_string_set_print_sorted(&is_reachable_sset, &is_reachable_strb, "\n");
+        is_reachable_str = (char*)ucs_string_buffer_cstr(&is_reachable_strb);
+        while ((info_str_ptr = strsep(&is_reachable_str, "\n"))) {
+            ucs_log(log_level, "%s", info_str_ptr);
         }
+        ucs_string_buffer_cleanup(&is_reachable_strb);
 
-        return UCS_ERR_UNREACHABLE;
+        ucs_info("ep %p: selected for %s: " UCT_TL_RESOURCE_DESC_FMT " md[%d]"
+              " -> '%s' address[%d],md[%d],rsc[%u] score %.2f",
+              ep, criteria->title,
+              UCT_TL_RESOURCE_DESC_ARG(&context->tl_rscs[sinfo.rsc_index].tl_rsc),
+              context->tl_rscs[sinfo.rsc_index].md_index, ucp_ep_peer_name(ep),
+              sinfo.addr_index, address->address_list[sinfo.addr_index].md_index,
+              address->address_list[sinfo.addr_index].iface_attr.dst_rsc_index,
+              sinfo.score);
+
+        status = UCS_ERR_UNREACHABLE;
+        goto cleanup_info;
     }
 
     ucs_trace("ep %p: selected for %s: " UCT_TL_RESOURCE_DESC_FMT " md[%d]"
@@ -538,7 +573,10 @@ out:
               sinfo.score);
 
     *select_info = sinfo;
-    return UCS_OK;
+
+cleanup_info:
+    ucs_string_set_cleanup(&is_reachable_sset);
+    return status;
 }
 
 static inline double ucp_wireup_tl_iface_latency(ucp_context_h context,

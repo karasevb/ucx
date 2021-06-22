@@ -664,27 +664,28 @@ uct_ib_iface_roce_is_reachable(const uct_ib_device_gid_info_t *local_gid_info,
     return ret;
 }
 
-int uct_ib_iface_is_reachable(const uct_iface_h tl_iface,
-                              const uct_device_addr_t *dev_addr,
-                              const uct_iface_addr_t *iface_addr)
+int uct_ib_iface_is_reachable_v2(const uct_iface_h tl_iface,
+                                 uct_iface_is_reachable_params_t *params)
 {
     uct_ib_iface_t *iface           = ucs_derived_of(tl_iface, uct_ib_iface_t);
     int is_local_eth                = uct_ib_iface_is_roce(iface);
-    const uct_ib_address_t *ib_addr = (const void*)dev_addr;
-    uct_ib_address_pack_params_t params;
+    const uct_ib_address_t *ib_addr = (const void*)params->dev_addr;
+    uct_ib_address_pack_params_t ib_addr_params;
 
-    uct_ib_address_unpack(ib_addr, &params);
+    uct_ib_address_unpack(ib_addr, &ib_addr_params);
 
     if (/* at least one PKEY has to be with full membership */
-        !((params.pkey | iface->pkey) & UCT_IB_PKEY_MEMBERSHIP_MASK) ||
+        !((ib_addr_params.pkey | iface->pkey) & UCT_IB_PKEY_MEMBERSHIP_MASK) ||
         /* PKEY values have to be equal */
-        ((params.pkey ^ iface->pkey) & UCT_IB_PKEY_PARTITION_MASK)) {
+        ((ib_addr_params.pkey ^ iface->pkey) & UCT_IB_PKEY_PARTITION_MASK)) {
+        // TODO add info to params->info_str
         return 0;
     }
 
     if (!is_local_eth && !(ib_addr->flags & UCT_IB_ADDRESS_FLAG_LINK_LAYER_ETH)) {
         /* same subnet prefix */
-        return params.gid.global.subnet_prefix ==
+        // TODO add info to params->info_str
+        return ib_addr_params.gid.global.subnet_prefix ==
                iface->gid_info.gid.global.subnet_prefix;
     } else if (is_local_eth && (ib_addr->flags & UCT_IB_ADDRESS_FLAG_LINK_LAYER_ETH)) {
         /* there shouldn't be a lid and the UCT_IB_ADDRESS_FLAG_LINK_LAYER_ETH
@@ -694,8 +695,25 @@ int uct_ib_iface_is_reachable(const uct_iface_h tl_iface,
                                               iface->addr_prefix_bits);
     } else {
         /* local and remote have different link layers and therefore are unreachable */
+        // TODO add info to params->info_str
         return 0;
     }
+}
+
+int uct_ib_iface_is_reachable(const uct_iface_h tl_iface,
+                              const uct_device_addr_t *dev_addr,
+                              const uct_iface_addr_t *iface_addr)
+{
+    uct_iface_is_reachable_params_t params;
+
+    params.field_mask =
+        (dev_addr   == NULL ? 0 : UCT_IFACE_IS_REACHABLE_FIELD_DEV_ADDR) |
+        (iface_addr == NULL ? 0 : UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR);
+
+    params.dev_addr   = dev_addr;
+    params.iface_addr = iface_addr;
+
+    return uct_ib_iface_is_reachable_v2(tl_iface, &params);
 }
 
 ucs_status_t uct_ib_iface_create_ah(uct_ib_iface_t *iface,

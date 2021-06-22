@@ -208,7 +208,7 @@ typedef struct uct_md_mem_dereg_params {
  * @ingroup UCT_RESOURCE
  * @brief Operation parameters passed to @ref uct_iface_is_reachable_v2.
  */
-typedef struct uct_iface_is_reachable_params {
+struct uct_iface_is_reachable_params {
     /**
      * Mask of valid fields in this structure and operation flags, using
      * bits from @ref uct_iface_is_reachable_v2. Fields not specified
@@ -244,7 +244,7 @@ typedef struct uct_iface_is_reachable_params {
      * @a info_str.
      */
     size_t                        info_str_len;
-} uct_iface_is_reachable_params_t;
+};
 
 
 /**

@@ -1060,16 +1060,34 @@ static void ucp_wireup_print_config(ucp_worker_h worker,
 
 int ucp_wireup_is_reachable(ucp_ep_h ep, unsigned ep_init_flags,
                             ucp_rsc_index_t rsc_index,
-                            const ucp_address_entry_t *ae)
+                            const ucp_address_entry_t *ae,
+                            char *info_str, size_t info_str_len)
 {
     ucp_context_h context      = ep->worker->context;
     ucp_worker_iface_t *wiface = ucp_worker_iface(ep->worker, rsc_index);
+    uct_iface_is_reachable_params_t params;
 
-    return (context->tl_rscs[rsc_index].tl_name_csum == ae->tl_name_csum) &&
-           (/* assume reachability is checked by CM, if EP selects lanes
-             * during CM phase */
-            (ep_init_flags & UCP_EP_INIT_CM_PHASE) ||
-            uct_iface_is_reachable(wiface->iface, ae->dev_addr, ae->iface_addr));
+    if (context->tl_rscs[rsc_index].tl_name_csum != ae->tl_name_csum) {
+        return 0;
+    }
+
+    params.field_mask =
+        (ae->dev_addr   == NULL ? 0 : UCT_IFACE_IS_REACHABLE_FIELD_DEV_ADDR) |
+        (ae->iface_addr == NULL ? 0 : UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR);
+    params.dev_addr   = ae->dev_addr;
+    params.iface_addr = ae->iface_addr;
+
+    if (info_str && info_str_len) {
+        params.field_mask  |= UCT_IFACE_IS_REACHABLE_FIELD_INFO_STR |
+                              UCT_IFACE_IS_REACHABLE_FIELD_INFO_STR_LEN;
+        params.info_str     = info_str;
+        params.info_str_len = info_str_len;
+    }
+
+    /* assume reachability is checked by CM, if EP selects lanes
+     * during CM phase */
+    return (ep_init_flags & UCP_EP_INIT_CM_PHASE) ||
+        uct_iface_is_reachable_v2(wiface->iface, &params);
 }
 
 static void
@@ -1091,7 +1109,7 @@ ucp_wireup_get_reachable_mds(ucp_ep_h ep, unsigned ep_init_flags,
     ae_dst_md_map = 0;
     UCS_BITMAP_FOR_EACH_BIT(context->tl_bitmap, rsc_index) {
         ucp_unpacked_address_for_each(ae, remote_address) {
-            if (ucp_wireup_is_reachable(ep, ep_init_flags, rsc_index, ae)) {
+            if (ucp_wireup_is_reachable(ep, ep_init_flags, rsc_index, ae, NULL, 0)) {
                 ae_dst_md_map         |= UCS_BIT(ae->md_index);
                 dst_md_index           = context->tl_rscs[rsc_index].md_index;
                 ae_cmpts[ae->md_index] = context->tl_mds[dst_md_index].cmpt_index;

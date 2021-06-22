@@ -200,7 +200,13 @@ int uct_iface_is_reachable(const uct_iface_h iface, const uct_device_addr_t *dev
 int uct_iface_is_reachable_v2(const uct_iface_h iface,
                               const uct_iface_is_reachable_params_t *params)
 {
-    ucs_fatal("uct_iface_is_reachable_v2 not supported yet");
+    //ucs_fatal("uct_iface_is_reachable_v2 not supported yet");
+    //TODO: tmp check
+    if (iface->ops.iface_is_reachable_v2) {
+        return iface->ops.iface_is_reachable_v2(iface, (uct_iface_is_reachable_params_t*)params);
+    } else {
+        return iface->ops.iface_is_reachable(iface, params->dev_addr, params->iface_addr);
+    }
     return 0;
 }
 
@@ -436,6 +442,8 @@ UCS_CLASS_INIT_FUNC(uct_iface_t, uct_iface_ops_t *ops)
     ucs_assert_always(ops->iface_query              != NULL);
     ucs_assert_always(ops->iface_get_device_address != NULL);
     ucs_assert_always(ops->iface_is_reachable       != NULL);
+// TODO
+//  ucs_assert_always(ops->iface_is_reachable_v2    != NULL);
 
     self->ops = *ops;
     return UCS_OK;

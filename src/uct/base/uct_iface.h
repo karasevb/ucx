@@ -208,6 +208,11 @@ enum {
 #define UCT_IFACE_PARAM_VALUE(_params, _name, _flag, _default) \
     UCS_PARAM_VALUE(UCT_IFACE_PARAM_FIELD, _params, _name, _flag, _default)
 
+#define UCT_IFACE_IS_REACHABLE_PARAM_VALUE(_params, _name, _flag, _default) \
+        UCS_PARAM_VALUE(UCT_IFACE_IS_REACHABLE_FIELD, _params, _name, _flag, \
+                        _default)
+
+
 
 /**
  * Declare classes for structures defined in api/tl.h

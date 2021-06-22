@@ -609,17 +609,46 @@ static ucs_status_t uct_rc_mlx5_iface_get_address(uct_iface_h tl_iface,
     return UCS_OK;
 }
 
+int uct_rc_mlx5_iface_is_reachable_v2(const uct_iface_h tl_iface,
+                                      uct_iface_is_reachable_params_t *params)
+{
+    uint8_t my_type;
+    char *info_str      = UCT_IFACE_IS_REACHABLE_PARAM_VALUE(params, info_str,
+                                                             INFO_STR, NULL);
+    size_t info_str_len = UCT_IFACE_IS_REACHABLE_PARAM_VALUE(params, info_str_len,
+                                                             INFO_STR_LEN, 0);
+
+    ucs_assert_always(!(!!info_str ^ !!info_str_len));
+
+    if ((params->field_mask & UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR)) {
+        my_type = uct_rc_mlx5_iface_get_address_type(tl_iface);
+        if (my_type != *(uint8_t*)params->iface_addr) {
+            if (info_str) {
+                   ucs_snprintf_safe(info_str, info_str_len,
+                                      "mismatch address type %d (expected %d)",
+                                      my_type, *(uint8_t*)params->iface_addr);
+                }
+            return 0;
+        }
+    }
+
+    return uct_ib_iface_is_reachable_v2(tl_iface, params);
+}
+
 int uct_rc_mlx5_iface_is_reachable(const uct_iface_h tl_iface,
                                    const uct_device_addr_t *dev_addr,
                                    const uct_iface_addr_t *iface_addr)
 {
-    uint8_t my_type = uct_rc_mlx5_iface_get_address_type(tl_iface);
+    uct_iface_is_reachable_params_t params;
 
-    if ((iface_addr != NULL) && (my_type != *(uint8_t*)iface_addr)) {
-        return 0;
-    }
+    params.field_mask =
+        (dev_addr   == NULL ? 0 : UCT_IFACE_IS_REACHABLE_FIELD_DEV_ADDR) |
+        (iface_addr == NULL ? 0 : UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR);
 
-    return uct_ib_iface_is_reachable(tl_iface, dev_addr, iface_addr);
+    params.dev_addr   = dev_addr;
+    params.iface_addr = iface_addr;
+
+    return uct_rc_mlx5_iface_is_reachable_v2(tl_iface, &params);
 }
 
 UCS_CLASS_INIT_FUNC(uct_rc_mlx5_iface_common_t, uct_iface_ops_t *tl_ops,
@@ -899,7 +928,8 @@ static uct_iface_ops_t uct_rc_mlx5_iface_tl_ops = {
     .iface_query              = uct_rc_mlx5_iface_query,
     .iface_get_address        = uct_rc_mlx5_iface_get_address,
     .iface_get_device_address = uct_ib_iface_get_device_address,
-    .iface_is_reachable       = uct_rc_mlx5_iface_is_reachable
+    .iface_is_reachable       = uct_rc_mlx5_iface_is_reachable,
+    .iface_is_reachable_v2    = uct_rc_mlx5_iface_is_reachable_v2,
     };
 
 static ucs_status_t
