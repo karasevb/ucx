@@ -139,10 +139,10 @@ typedef enum {
  * @brief field mask of @ref uct_iface_is_reachable_v2
  */
 typedef enum {
-    UCT_IFACE_IS_REACHABLE_FIELD_DEV_ADDR        = UCS_BIT(0), /**< dev_addr field */
-    UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR      = UCS_BIT(1), /**< iface_addr field */
-    UCT_IFACE_IS_REACHABLE_FIELD_INFO_STR        = UCS_BIT(2), /**< info_str field */
-    UCT_IFACE_IS_REACHABLE_FIELD_INFO_STR_LENGTH = UCS_BIT(3)  /**< info_str_length field */
+    UCT_IFACE_IS_REACHABLE_FIELD_DEVICE_ADDR        = UCS_BIT(0), /**< device_addr field */
+    UCT_IFACE_IS_REACHABLE_FIELD_IFACE_ADDR         = UCS_BIT(1), /**< iface_addr field */
+    UCT_IFACE_IS_REACHABLE_FIELD_INFO_STRING        = UCS_BIT(2), /**< info_string field */
+    UCT_IFACE_IS_REACHABLE_FIELD_INFO_STRING_LENGTH = UCS_BIT(3)  /**< info_string_length field */
 } uct_iface_is_reachable_field_mask_t;
 
 
@@ -231,7 +231,7 @@ typedef struct uct_iface_is_reachable_params {
      * Device address to check for reachability.
      * This field must not be passed if iface_attr.dev_addr_len == 0.
      */
-    const uct_device_addr_t      *dev_addr;
+    const uct_device_addr_t      *device_addr;
 
     /**
      * Interface address to check for reachability.
@@ -245,13 +245,13 @@ typedef struct uct_iface_is_reachable_params {
      * null-terminated information string explaining why the remote address is
      * not reachable if the return value is 0.
      */
-    char                         *info_str;
+    char                         *info_string;
 
     /**
-     * The length of the @a info_str is provided in bytes.
-     * This value must be specified in conjunction with @a info_str.
+     * The length of the @a info_string is provided in bytes.
+     * This value must be specified in conjunction with @a info_string.
      */
-    size_t                        info_str_length;
+    size_t                        info_string_length;
 } uct_iface_is_reachable_params_t;
 
 
