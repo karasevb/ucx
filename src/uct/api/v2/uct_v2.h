@@ -292,7 +292,7 @@ ucs_status_t uct_md_mem_dereg_v2(uct_md_h md,
  *
  * This function checks if a remote address can be reached from a local
  * interface. If the function returns a non-zero value, it does not necessarily
- * mean a connection and/or data transfer would succeed, since the reachability
+ * mean a connection and/or data transfer would succeed; as the reachability
  * check is a local operation it does not detect issues such as network
  * mis-configuration or lack of connectivity.
  *
