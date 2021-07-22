@@ -16,7 +16,7 @@
 /* Remote keys with that many remote MDs or less would be allocated from a
  * memory pool.
  */
-#define UCP_RKEY_MPOOL_MAX_MD     3
+#define UCP_RKEY_MPOOL_MAX_MD     2/*3*/
 
 
 /**
@@ -76,6 +76,15 @@ typedef struct {
     ucp_proto_select_t       proto_select;
 } ucp_rkey_config_t;
 
+typedef enum {
+    UCP_RMA_BASIC_PROTO = 0,
+    UCP_RMA_SW_PROTO    = 1
+} ucp_rma_proto_type_t;
+
+typedef enum {
+    UCP_AMO_BASIC_PROTO = 0,
+    UCP_AMO_SW_PROTO    = 1
+} ucp_amo_proto_type_t;
 
 /**
  * Remote memory key structure.
@@ -84,24 +93,35 @@ typedef struct {
  * The array itself contains only the MDs specified in md_map, without gaps.
  */
 typedef struct ucp_rkey {
-    /* cached values for the most recent endpoint configuration */
-    struct {
-        ucp_worker_cfg_index_t    ep_cfg_index; /* EP configuration relevant for the cache */
-        ucp_lane_index_t          rma_lane;     /* Lane to use for RMAs */
-        ucp_lane_index_t          amo_lane;     /* Lane to use for AMOs */
-        ssize_t                   max_put_short;/* Cached value of max_put_short */
-        uct_rkey_t                rma_rkey;     /* Key to use for RMAs */
-        uct_rkey_t                amo_rkey;     /* Key to use for AMOs */
-        ucp_amo_proto_t           *amo_proto;   /* Protocol for AMOs */
-        ucp_rma_proto_t           *rma_proto;   /* Protocol for RMAs */
-    } cache;
-    ucp_md_map_t                  md_map;       /* Which *remote* MDs have valid memory handles */
-    ucs_memory_type_t             mem_type;     /* Memory type of remote key memory */
-    uint8_t                       flags;        /* Rkey flags */
-    ucp_worker_cfg_index_t        cfg_index;    /* Rkey configuration index */
+    union {
+        /* cached values for the most recent endpoint configuration */
+        struct {
+            uct_rkey_t                rma_rkey;     /* Key to use for RMAs */
+            uct_rkey_t                amo_rkey;     /* Key to use for AMOs */
+            uint8_t/*ucp_rma_proto_type_t*/      amo_proto;    /* Protocol for AMOs */
+            uint8_t/*ucp_rma_proto_type_t*/      rma_proto;    /* Protocol for RMAs */
+            ucp_worker_cfg_index_t    ep_cfg_index; /* EP configuration relevant for the cache */
+            ucp_lane_index_t          rma_lane;     /* Lane to use for RMAs */
+            ucp_lane_index_t          amo_lane;     /* Lane to use for AMOs */
+            uint8_t                   flags;        /* Rkey flags */
+
+            //ucp_amo_proto_t           *amo_proto;   /* Protocol for AMOs */
+            //ucp_rma_proto_t           *rma_proto;   /* Protocol for RMAs */
+            ssize_t                   max_put_short;/* Cached value of max_put_short */
+        } cache;
+        struct {
+            ucp_worker_cfg_index_t        cfg_index;    /* Rkey configuration index */
+            ucs_memory_type_t             mem_type;     /* Memory type of remote key memory */
+            uint8_t                       gap[13]; // to align the next flags with the cache.flags
+            uint8_t                       flags;        /* Rkey flags */
+
+        };
+    };
+
 #if ENABLE_PARAMS_CHECK
     ucp_ep_h                      ep;
 #endif
+    ucp_md_map_t                  md_map;       /* Which *remote* MDs have valid memory handles */
     ucp_tl_rkey_t                 tl_rkey[0];   /* UCT rkey for every remote MD */
 } ucp_rkey_t;
 

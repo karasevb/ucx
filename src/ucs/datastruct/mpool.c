@@ -85,7 +85,7 @@ ucs_status_t ucs_mpool_init(ucs_mpool_t *mp, size_t priv_size,
 
     VALGRIND_CREATE_MEMPOOL(mp, 0, 0);
 
-    ucs_debug("mpool %s: align %u, maxelems %u, elemsize %u",
+    ucs_info("mpool %s: align %u, maxelems %u, elemsize %u",
               ucs_mpool_name(mp), mp->data->alignment, max_elems, mp->data->elem_size);
     return UCS_OK;
 

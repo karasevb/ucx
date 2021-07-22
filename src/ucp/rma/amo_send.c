@@ -204,11 +204,11 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_atomic_op_nbx,
     if (param->op_attr_mask & UCP_OP_ATTR_FIELD_REPLY_BUFFER) {
         ucp_amo_init_fetch(req, ep, param->reply_buffer,
                            ucp_uct_atomic_op_table[opcode], op_size,
-                           remote_addr, rkey, value, rkey->cache.amo_proto);
+                           remote_addr, rkey, value, ucp_amo_proto_list[rkey->cache.amo_proto]/*rkey->cache.amo_proto*/);
         status_p = ucp_rma_send_request(req, param);
     } else {
         ucp_amo_init_post(req, ep, ucp_uct_atomic_op_table[opcode], op_size,
-                          remote_addr, rkey, value, rkey->cache.amo_proto);
+                          remote_addr, rkey, value, ucp_amo_proto_list[rkey->cache.amo_proto]/*rkey->cache.amo_proto*/);
 
         status_p = ucp_rma_send_request(req, param);
         if (UCS_PTR_IS_PTR(status_p)) {
@@ -250,7 +250,7 @@ ucs_status_t ucp_atomic_post(ucp_ep_h ep, ucp_atomic_post_op_t opcode, uint64_t 
     }
 
     ucp_amo_init_post(req, ep, ucp_uct_op_table[opcode], op_size, remote_addr,
-                      rkey, value, rkey->cache.amo_proto);
+                      rkey, value, ucp_amo_proto_list[rkey->cache.amo_proto]/*rkey->cache.amo_proto*/);
 
     status_p = ucp_rma_send_request_cb(req, (ucp_send_callback_t)ucs_empty_function);
     if (UCS_PTR_IS_PTR(status_p)) {

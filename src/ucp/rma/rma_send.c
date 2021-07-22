@@ -243,6 +243,11 @@ ucs_status_ptr_t ucp_put_nbx(ucp_ep_h ep, const void *buffer, size_t count,
     ucs_status_t status;
     ucp_request_t *req;
 
+    ucp_ep_config_t *config = ucp_ep_config(ep);
+
+    //ucs_info("ucp_put_nbx: config max_put_short=%lu", config->rma[rkey->cache.rma_lane].max_put_short);
+    //ucs_info("ucp_put_nbx: rkey   max_put_short=%lu", rkey->cache.max_put_short);
+
     UCP_RMA_CHECK_CONTIG1(param);
     UCP_RMA_CHECK_PTR(worker->context, buffer, count);
     UCP_WORKER_THREAD_CS_ENTER_CONDITIONAL(worker);
@@ -279,7 +284,8 @@ ucs_status_ptr_t ucp_put_nbx(ucp_ep_h ep, const void *buffer, size_t count,
 
         /* Fast path for a single short message */
         if (ucs_likely(!(param->op_attr_mask & UCP_OP_ATTR_FLAG_NO_IMM_CMPL) &&
-                        ((ssize_t)count <= rkey->cache.max_put_short))) {
+                        ((ssize_t)count <= /*rkey->cache.max_put_short*/
+                        config->rma[rkey->cache.rma_lane].max_put_short))) {
             status = UCS_PROFILE_CALL(uct_ep_put_short,
                                       ep->uct_eps[rkey->cache.rma_lane], buffer,
                                       count, remote_addr, rkey->cache.rma_rkey);
@@ -296,7 +302,8 @@ ucs_status_ptr_t ucp_put_nbx(ucp_ep_h ep, const void *buffer, size_t count,
 
         rma_config = &ucp_ep_config(ep)->rma[rkey->cache.rma_lane];
         ret = ucp_rma_nonblocking(ep, buffer, count, remote_addr, rkey,
-                                  rkey->cache.rma_proto->progress_put,
+                                  ucp_rma_proto_list[rkey->cache.rma_proto]->progress_put
+                                  /*rkey->cache.rma_proto->progress_put*/,
                                   rma_config->put_zcopy_thresh, param);
     }
 
@@ -379,7 +386,8 @@ ucs_status_ptr_t ucp_get_nbx(ucp_ep_h ep, void *buffer, size_t count,
 
         rma_config = &ucp_ep_config(ep)->rma[rkey->cache.rma_lane];
         ret        = ucp_rma_nonblocking(ep, buffer, count, remote_addr, rkey,
-                                         rkey->cache.rma_proto->progress_get,
+                                        ucp_rma_proto_list[rkey->cache.rma_proto]->progress_get
+                                         /*rkey->cache.rma_proto->progress_get*/,
                                          rma_config->get_zcopy_thresh, param);
     }
 

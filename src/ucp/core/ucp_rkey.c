@@ -33,6 +33,15 @@ static struct {
     uint8_t      mem_type;
 } UCS_S_PACKED ucp_mem_dummy_buffer = {0, UCS_MEMORY_TYPE_HOST};
 
+ucp_amo_proto_t *ucp_amo_proto_list[] = {
+    [UCP_AMO_BASIC_PROTO] &ucp_amo_basic_proto,
+    [UCP_AMO_SW_PROTO]    &ucp_amo_sw_proto
+};
+
+ucp_rma_proto_t *ucp_rma_proto_list[] = {
+    [UCP_RMA_BASIC_PROTO] &ucp_rma_basic_proto,
+    [UCP_RMA_SW_PROTO]    &ucp_rma_sw_proto
+};
 
 size_t ucp_rkey_packed_size(ucp_context_h context, ucp_md_map_t md_map,
                             ucs_sys_device_t sys_dev, uint64_t sys_dev_map)
@@ -224,6 +233,8 @@ ucs_status_t ucp_rkey_pack(ucp_context_h context, ucp_mem_h memh,
 
     ucs_assert(packed_size == size);
 
+    ucs_info("ucp_rkey_pack: size=%lu, packed_size=%lu", size, packed_size);
+
     *rkey_buffer_p = rkey_buffer;
     *size_p        = size;
     status         = UCS_OK;
@@ -337,9 +348,15 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_ep_rkey_unpack_internal,
     ucs_status_t status;
     ucp_rkey_h rkey;
     uint8_t flags;
+    ucp_rkey_t tmp;
 
-    ucs_trace("ep %p: unpacking rkey buffer %p length %zu", ep, buffer, length);
+    ucs_info("rkey_unpack  sizeof(ucp_rkey_t)=%lu", sizeof(ucp_rkey_t));
+    ucs_info("ep %p: unpacking rkey buffer %p length %zu", ep, buffer, length);
     ucs_log_indent(1);
+
+    
+    ucs_info("flags  %p %p", &tmp.cache.flags, &tmp.flags);
+
 
     /* MD map for the unpacked rkey */
     remote_md_map = *ucs_serialize_next(&p, const ucp_md_map_t);
@@ -367,6 +384,12 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_ep_rkey_unpack_internal,
     rkey->md_map   = md_map;
     rkey->mem_type = *ucs_serialize_next(&p, const uint8_t);
     rkey->flags    = flags;
+
+    ucs_info("unpack: rkey->flags=%u", rkey->flags);
+
+    ucs_info("rkey_unpack  sizeof(rkey->cache)=%lu", sizeof(rkey->cache));
+    ucs_info("rkey_unpack  sizeof(rkey->cache.amo_proto)=%lu", sizeof(rkey->cache.amo_proto));
+
 #if ENABLE_PARAMS_CHECK
     rkey->ep       = ep;
 #endif
@@ -604,15 +627,15 @@ void ucp_rkey_resolve_inner(ucp_rkey_h rkey, ucp_ep_h ep)
                                                   config->key.rma_lanes, rkey,
                                                   0, &uct_rkey);
     if (rkey->cache.rma_lane == UCP_NULL_LANE) {
-        rkey->cache.rma_proto     = &ucp_rma_sw_proto;
+        rkey->cache.rma_proto     = UCP_RMA_SW_PROTO;//&ucp_rma_sw_proto;
         rkey->cache.rma_rkey      = UCT_INVALID_RKEY;
-        rkey->cache.max_put_short = 0;
+        //rkey->cache.max_put_short = 0;
         rma_sw                    = !!(context->config.features & UCP_FEATURE_RMA);
     } else {
-        rkey->cache.rma_proto     = &ucp_rma_basic_proto;
+        rkey->cache.rma_proto     = UCP_RMA_BASIC_PROTO;//&ucp_rma_basic_proto;
         rkey->cache.rma_rkey      = uct_rkey;
-        rkey->cache.rma_proto     = &ucp_rma_basic_proto;
-        rkey->cache.max_put_short = config->rma[rkey->cache.rma_lane].max_put_short;
+        //rkey->cache.rma_proto     = &ucp_rma_basic_proto;
+        //rkey->cache.max_put_short = config->rma[rkey->cache.rma_lane].max_put_short;
     }
 
     rkey->cache.amo_lane = ucp_rkey_find_rma_lane(context, config,
@@ -620,12 +643,12 @@ void ucp_rkey_resolve_inner(ucp_rkey_h rkey, ucp_ep_h ep)
                                                   config->key.amo_lanes, rkey,
                                                   0, &uct_rkey);
     if (rkey->cache.amo_lane == UCP_NULL_LANE) {
-        rkey->cache.amo_proto     = &ucp_amo_sw_proto;
+        rkey->cache.amo_proto     = UCP_AMO_SW_PROTO;//&ucp_amo_sw_proto;
         rkey->cache.amo_rkey      = UCT_INVALID_RKEY;
         amo_sw                    = !!(context->config.features &
                                        (UCP_FEATURE_AMO32 | UCP_FEATURE_AMO64));
     } else {
-        rkey->cache.amo_proto     = &ucp_amo_basic_proto;
+        rkey->cache.amo_proto     = UCP_AMO_BASIC_PROTO;//&ucp_amo_basic_proto;
         rkey->cache.amo_rkey      = uct_rkey;
     }
 
@@ -655,8 +678,8 @@ void ucp_rkey_resolve_inner(ucp_rkey_h rkey, ucp_ep_h ep)
     ucs_trace("rkey %p ep %p @ cfg[%d] %s: lane[%d] rkey 0x%"PRIxPTR
               " %s: lane[%d] rkey 0x%"PRIxPTR,
               rkey, ep, ep->cfg_index,
-              rkey->cache.rma_proto->name, rkey->cache.rma_lane, rkey->cache.rma_rkey,
-              rkey->cache.amo_proto->name, rkey->cache.amo_lane, rkey->cache.amo_rkey);
+              ucp_rma_proto_list[rkey->cache.rma_proto]->name/*rkey->cache.rma_proto->name*/, rkey->cache.rma_lane, rkey->cache.rma_rkey,
+              ucp_amo_proto_list[rkey->cache.amo_proto]->name/*rkey->cache.amo_proto->name*/, rkey->cache.amo_lane, rkey->cache.amo_rkey);
 }
 
 void ucp_rkey_config_dump_brief(const ucp_rkey_config_key_t *rkey_config_key,
