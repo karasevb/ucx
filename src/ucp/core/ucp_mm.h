@@ -30,6 +30,7 @@ typedef struct ucp_mem {
     uct_alloc_method_t            alloc_method; /* Method used to allocate the memory */
     ucs_memory_type_t             mem_type;     /* Type of allocated or registered memory */
     uct_md_h                      alloc_md;     /* MD used to allocated the memory */
+    ucp_md_index_t                num_mds;      /* Number of memory domains */
     ucp_md_map_t                  md_map;       /* Which MDs have valid memory handles */
     uct_mem_h                     uct[0];       /* Valid memory handles, as popcount(md_map) */
 } ucp_mem_t;

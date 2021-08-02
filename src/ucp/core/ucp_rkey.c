@@ -400,6 +400,9 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_ep_rkey_unpack_internal,
         tl_rkey_size = *ucs_serialize_next(&p, const uint8_t);
         tl_rkey_buf  = ucs_serialize_next_raw(&p, const void, tl_rkey_size);
 
+        ucs_info("unpack md_index=%d, tl_rkey_size=%lu",
+                 remote_md_index, tl_rkey_size);
+
         /* Use bit operations to iterate through the indices of the remote MDs
          * as provided in the md_map. md_map always holds a bitmap of MD indices
          * that remain to be used. Every time we find the next valid MD index.

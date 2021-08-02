@@ -184,7 +184,8 @@ static int ucp_is_md_selected_by_config(ucp_context_h context,
            !strncmp(cfg_cmpt_name, cmpt_name, UCT_COMPONENT_NAME_MAX);
 }
 
-static ucs_status_t ucp_mem_alloc(ucp_context_h context, size_t length,
+static ucs_status_t ucp_mem_alloc(ucp_context_h context, ucp_md_map_t md_map,
+                                  size_t length,
                                   unsigned uct_flags, const char *name, ucp_mem_h memh)
 {
     uct_allocated_memory_t mem;
@@ -209,7 +210,7 @@ static ucs_status_t ucp_mem_alloc(ucp_context_h context, size_t length,
          */
         num_mds = 0;
         if (method == UCT_ALLOC_METHOD_MD) {
-            for (md_index = 0; md_index < context->num_mds; ++md_index) {
+            ucs_for_each_bit(md_index, md_map) {
                 if (ucp_is_md_selected_by_config(context, method_index, md_index)) {
                     mds[num_mds++] = context->tl_mds[md_index].md;
                 }
@@ -247,7 +248,7 @@ allocated:
     memh->mem_type     = mem.mem_type;
     memh->alloc_md     = mem.md;
     memh->md_map       = 0;
-    status = ucp_mem_rereg_mds(context, UCS_MASK(context->num_mds), memh->address,
+    status = ucp_mem_rereg_mds(context, md_map, memh->address,
                                memh->length, uct_flags | UCT_MD_MEM_FLAG_HIDE_ERRORS,
                                memh->alloc_md, memh->mem_type, &mem.memh,
                                memh->uct, &memh->md_map);
@@ -287,17 +288,62 @@ static inline int ucp_mem_map_is_allocate(const ucp_mem_map_params_t *params)
            (params->flags & UCP_MEM_MAP_ALLOCATE);
 }
 
+
+static inline int ucp_mem_map_is_net_only(const ucp_mem_map_params_t *params)
+{
+    return (params->field_mask & UCP_MEM_MAP_PARAM_FIELD_FLAGS) &&
+           (params->flags & UCP_MEM_MAP_NET_ONLY);
+}
+
+static ucs_status_t ucp_mds_net_only(ucp_context_h context, ucp_md_map_t *md_map,
+                                     ucp_md_index_t *num_mds)
+{
+    unsigned        md_index;
+    ucp_rsc_index_t tl_id;
+    
+    *md_map = 0;
+
+    UCS_BITMAP_FOR_EACH_BIT(context->tl_bitmap, tl_id) {
+        md_index = context->tl_rscs[tl_id].md_index;
+        if (context->tl_rscs[tl_id].tl_rsc.dev_type == UCT_DEVICE_TYPE_NET) {
+            ucs_info("NET md=%d %s", md_index,
+                        context->tl_mds[md_index].rsc.md_name);
+            *md_map |= UCS_BIT(md_index);
+            (*num_mds)++;
+        } else {
+            ucs_info("SM  md=%d %s", md_index,
+                        context->tl_mds[md_index].rsc.md_name);
+        }
+    }
+
+    return UCS_OK;
+}
+
 static ucs_status_t ucp_mem_map_common(ucp_context_h context, void *address,
                                        size_t length, ucs_memory_type_t memory_type,
                                        unsigned uct_flags, int is_allocate,
-                                       const char *alloc_name, ucp_mem_h *memh_p)
+                                       int is_net_only, const char *alloc_name,
+                                       ucp_mem_h *memh_p)
 {
     ucs_status_t            status;
     ucp_mem_h               memh;
+    ucp_md_index_t          num_mds;
+    ucp_md_map_t            md_map;
 
     /* Allocate the memory handle */
     ucs_assert(context->num_mds > 0);
-    memh = ucs_malloc(sizeof(*memh) + context->num_mds * sizeof(memh->uct[0]),
+
+    if (is_net_only) {
+        int delay = 0;
+        while (delay) sleep(1);
+
+        ucp_mds_net_only(context, &md_map, &num_mds);
+    } else {
+        num_mds = context->num_mds;
+        md_map  = UCS_MASK(context->num_mds);
+    }
+
+    memh = ucs_malloc(sizeof(*memh) + num_mds * sizeof(memh->uct[0]),
                       "ucp_memh");
     if (memh == NULL) {
         status = UCS_ERR_NO_MEMORY;
@@ -311,7 +357,8 @@ static ucs_status_t ucp_mem_map_common(ucp_context_h context, void *address,
     if (is_allocate) {
         ucs_debug("allocating %s at %p length %zu of %s type", alloc_name,
                   address, length, ucs_memory_type_names[memory_type]);
-        status = ucp_mem_alloc(context, length, uct_flags, alloc_name, memh);
+        status = ucp_mem_alloc(context, md_map, length, uct_flags, alloc_name,
+                               memh);
         if (status != UCS_OK) {
             goto err_free_memh;
         }
@@ -322,7 +369,7 @@ static ucs_status_t ucp_mem_map_common(ucp_context_h context, void *address,
 
         ucs_debug("registering %s %p length %zu mem_type %s", alloc_name,
                   address, length, ucs_memory_type_names[memh->mem_type]);
-        status = ucp_mem_rereg_mds(context, UCS_MASK(context->num_mds),
+        status = ucp_mem_rereg_mds(context, md_map,
                                    memh->address, memh->length,
                                    uct_flags | UCT_MD_MEM_FLAG_HIDE_ERRORS,
                                    NULL, memh->mem_type, NULL, memh->uct,
@@ -464,6 +511,7 @@ ucs_status_t ucp_mem_map(ucp_context_h context, const ucp_mem_map_params_t *para
     status = ucp_mem_map_common(context, address, params->length, memory_type,
                                 ucp_mem_map_params2uct_flags(params),
                                 ucp_mem_map_is_allocate(params),
+                                ucp_mem_map_is_net_only(params),
                                 "user memory", memh_p);
 out:
     UCP_THREAD_CS_EXIT(&context->mt_lock);
@@ -660,7 +708,7 @@ ucp_mpool_malloc(ucp_worker_h worker, ucs_mpool_t *mp, size_t *size_p, void **ch
     status = ucp_mem_map_common(worker->context, NULL,
                                 *size_p + sizeof(*chunk_hdr), UCS_MEMORY_TYPE_HOST,
                                 ucp_mem_map_params2uct_flags(&mem_params),
-                                1, ucs_mpool_name(mp), &memh);
+                                1, 0, ucs_mpool_name(mp), &memh);
     if (status != UCS_OK) {
         goto out;
     }
