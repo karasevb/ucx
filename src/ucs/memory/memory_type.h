@@ -45,7 +45,6 @@ typedef enum ucs_memory_type {
     UCS_MEMORY_TYPE_UNKNOWN = UCS_MEMORY_TYPE_LAST
 } ucs_memory_type_t;
 
-
 /**
  * Array of string names for each memory type
  */

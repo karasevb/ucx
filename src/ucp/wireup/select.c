@@ -19,6 +19,8 @@
 #include <ucp/core/ucp_ep.inl>
 #include <string.h>
 #include <inttypes.h>
+#include <ucs/datastruct/string_buffer.h>
+#include <ucs/datastruct/string_set.h>
 
 #define UCP_WIREUP_RMA_BW_TEST_MSG_SIZE    262144
 #define UCP_WIREUP_UCT_EVENT_CAP_FLAGS     (UCT_IFACE_FLAG_EVENT_SEND_COMP | \
@@ -296,6 +298,9 @@ static UCS_F_NOINLINE ucs_status_t ucp_wireup_select_transport(
     uint64_t local_iface_flags            = criteria->local_iface_flags;
     int has_cm                            =
             ucp_ep_init_flags_has_cm(select_params->ep_init_flags);
+    size_t info_str_len                   = ucs_log_get_buffer_size();
+    char *info_str_tmp                    = ucs_alloca(info_str_len);
+    ucs_status_t status                   = UCS_OK;
     uint64_t local_md_flags;
     ucp_tl_addr_bitmap_t addr_index_map, rsc_addr_index_map;
     const ucp_wireup_lane_desc_t *lane_desc;
@@ -311,6 +316,10 @@ static UCS_F_NOINLINE ucs_status_t ucp_wireup_select_transport(
     int is_reachable;
     double score;
     uint8_t priority;
+    ucs_string_set_t is_reachable_sset;
+    ucs_string_buffer_t is_reachable_strb;
+    ucs_log_level_t log_level;
+    char *token, *next_token;
 
     p            = tls_info;
     endp         = tls_info + sizeof(tls_info) - 1;
@@ -318,6 +327,7 @@ static UCS_F_NOINLINE ucs_status_t ucp_wireup_select_transport(
     UCS_BITMAP_AND_INPLACE(&tl_bitmap, select_params->tl_bitmap);
     UCS_BITMAP_AND_INPLACE(&tl_bitmap, context->tl_bitmap);
     show_error   = (select_params->show_error && show_error);
+    ucs_string_set_init(&is_reachable_sset);
 
     /* Check which remote addresses satisfy the criteria */
     UCS_BITMAP_CLEAR(&addr_index_map);
@@ -479,8 +489,16 @@ static UCS_F_NOINLINE ucs_status_t ucp_wireup_select_transport(
         is_reachable = 0;
         UCS_BITMAP_FOR_EACH_BIT(rsc_addr_index_map, addr_index) {
             ae = &address->address_list[addr_index];
+            info_str_tmp[0] = '\0';
             if (!ucp_wireup_is_reachable(ep, select_params->ep_init_flags,
-                                         rsc_index, ae)) {
+                                         rsc_index, ae, info_str_tmp,
+                                         info_str_len)) {
+                if (strlen(info_str_tmp)) {
+                    ucs_string_set_addf(&is_reachable_sset, "no %s transport to %s: " UCT_TL_RESOURCE_DESC_FMT " - %s",
+                                        criteria->title, address->name,
+                                        UCT_TL_RESOURCE_DESC_ARG(resource),
+                                        info_str_tmp);
+                }
                 /* Must be reachable device address, on same transport */
                 continue;
             }
@@ -520,12 +538,25 @@ out:
     }
 
     if (!found) {
-        if (show_error) {
-            ucs_error("no %s transport to %s: %s", criteria->title,
-                      address->name, tls_info);
+        ucs_string_buffer_init(&is_reachable_strb);
+        ucs_string_set_print_sorted(&is_reachable_sset, &is_reachable_strb, "\n");
+        token = (char*)ucs_string_buffer_cstr(&is_reachable_strb);
+        log_level = show_error ? UCS_LOG_LEVEL_ERROR : UCS_LOG_LEVEL_DIAG;
+        while ((next_token = strsep(&token, "\n"))) {
+            ucs_log(log_level, "%s", next_token);
         }
+        ucs_string_buffer_cleanup(&is_reachable_strb);
+        ucs_info("ep %p: selected for %s: " UCT_TL_RESOURCE_DESC_FMT " md[%d]"
+              " -> '%s' address[%d],md[%d],rsc[%u] score %.2f",
+              ep, criteria->title,
+              UCT_TL_RESOURCE_DESC_ARG(&context->tl_rscs[sinfo.rsc_index].tl_rsc),
+              context->tl_rscs[sinfo.rsc_index].md_index, ucp_ep_peer_name(ep),
+              sinfo.addr_index, address->address_list[sinfo.addr_index].md_index,
+              address->address_list[sinfo.addr_index].iface_attr.dst_rsc_index,
+              sinfo.score);
 
-        return UCS_ERR_UNREACHABLE;
+        status = UCS_ERR_UNREACHABLE;
+        goto cleanup;
     }
 
     ucs_trace("ep %p: selected for %s: " UCT_TL_RESOURCE_DESC_FMT " md[%d]"
@@ -538,7 +569,10 @@ out:
               sinfo.score);
 
     *select_info = sinfo;
-    return UCS_OK;
+
+cleanup:
+    ucs_string_set_cleanup(&is_reachable_sset);
+    return status;
 }
 
 static inline double ucp_wireup_tl_iface_latency(ucp_context_h context,

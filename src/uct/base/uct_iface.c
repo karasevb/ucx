@@ -228,7 +228,12 @@ int uct_iface_is_reachable(const uct_iface_h iface, const uct_device_addr_t *dev
 int uct_iface_is_reachable_v2(const uct_iface_h iface,
                               const uct_iface_is_reachable_params_t *params)
 {
-    ucs_fatal("uct_iface_is_reachable_v2 not supported yet");
+    if (iface->ops.iface_is_reachable_v2) {
+        return iface->ops.iface_is_reachable_v2(iface, params);
+    } else {
+        return uct_iface_is_reachable(iface, params->device_addr,
+                                      params->iface_addr);
+    }
     return 0;
 }
 

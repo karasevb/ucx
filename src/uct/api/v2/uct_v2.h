@@ -278,7 +278,7 @@ extern const char *uct_ep_operation_names[];
  * @ingroup UCT_RESOURCE
  * @brief Operation parameters passed to @ref uct_iface_is_reachable_v2.
  */
-typedef struct uct_iface_is_reachable_params {
+struct uct_iface_is_reachable_params {
     /**
      * Mask of valid fields in this structure, using bits from
      * @ref uct_iface_is_reachable_field_mask_t. Fields not specified in this
@@ -312,7 +312,7 @@ typedef struct uct_iface_is_reachable_params {
      * This value must be specified in conjunction with @a info_string.
      */
     size_t                        info_string_length;
-} uct_iface_is_reachable_params_t;
+};
 
 
 /**

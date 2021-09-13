@@ -286,6 +286,9 @@ typedef int          (*uct_iface_is_reachable_func_t)(const uct_iface_h iface,
                                                       const uct_device_addr_t *dev_addr,
                                                       const uct_iface_addr_t *iface_addr);
 
+typedef int          (*uct_iface_is_reachable_v2_func_t)(const uct_iface_h iface,
+                                                         const uct_iface_is_reachable_params_t *params);
+
 
 /**
  * Transport interface operations.
@@ -371,7 +374,7 @@ typedef struct uct_iface_ops {
     uct_iface_get_device_address_func_t iface_get_device_address;
     uct_iface_get_address_func_t        iface_get_address;
     uct_iface_is_reachable_func_t       iface_is_reachable;
-
+    uct_iface_is_reachable_v2_func_t    iface_is_reachable_v2;
 } uct_iface_ops_t;
 
 
