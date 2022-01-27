@@ -11,6 +11,8 @@
 extern "C" {
 #include <ucp/core/ucp_request.h>
 #include <ucp/core/ucp_types.h>
+#include <ucp/rndv/proto_rndv.h>
+#include <ucp/core/ucp_ep.inl>
 }
 
 using namespace ucs; /* For vector<char> serialization */
@@ -918,3 +920,78 @@ UCS_TEST_P(test_ucp_tag_match_rndv, bidir_multi_exp_post)
 
 UCP_INSTANTIATE_TEST_CASE(test_ucp_tag_match_rndv)
 UCP_INSTANTIATE_TEST_CASE_TLS(test_ucp_tag_match_rndv, mm_tcp, "posix,sysv,tcp")
+
+class test_ucp_tag_match_rndv_align : public test_ucp_tag_match_rndv {
+public:
+    enum {
+        RNDV_SCHEME_GET_ZCOPY,
+        RNDV_SCHEME_LAST,
+    };
+
+    static const std::string rndv_schemes[];
+
+    void init() {
+        modify_config("RNDV_THRESH", "0");
+        modify_config("RNDV_SCHEME", rndv_schemes[rndv_scheme()]);
+        test_ucp_tag_match::init();
+    }
+
+    static void get_test_variants(std::vector<ucp_test_variant>& variants) {
+        for (int rndv_scheme = 0; rndv_scheme < RNDV_SCHEME_LAST; ++rndv_scheme) {
+            add_variant_with_value(variants, get_ctx_params(),
+                                   rndv_scheme | ENABLE_PROTO,
+                                   rndv_schemes[rndv_scheme] + ",proto");
+        }
+    }
+protected:
+    size_t min_frag()
+    {
+        return ucp_ep_config(receiver().ep())->rndv.get_zcopy.min;
+    }
+};
+
+const std::string test_ucp_tag_match_rndv_align::rndv_schemes[] = { "get_zcopy" };
+
+UCS_TEST_P(test_ucp_tag_match_rndv_align, recv_align) {
+    size_t recv_offsets[4];
+    size_t sizes[] = { UCP_PROTO_RNDV_ALIGN, 1000, 2000, 8000,
+                       2500ul * UCS_MBYTE, UCS_GBYTE + 32 };
+    request *ucx_req;
+
+    receiver().connect(&sender(), get_ep_params());
+
+    recv_offsets[0] = 0;
+    recv_offsets[1] = min_frag();
+    recv_offsets[2] = UCP_PROTO_RNDV_ALIGN - 1;
+    recv_offsets[3] = ucs::rand() % UCP_PROTO_RNDV_ALIGN + 1;
+
+    for (unsigned i = 0; i < ucs_static_array_size(recv_offsets); i++) {
+        for (unsigned j = 0; j < ucs_static_array_size(sizes); j++) {
+            const size_t recv_offset = recv_offsets[i];
+            const size_t size = sizes[j] / ucs::test_time_multiplier() /
+                                ucs::test_time_multiplier();
+            size_t offset;
+            std::vector<char> sendbuf(size, 0);
+            std::vector<char> recvbuf(size + recv_offset +
+                                      UCP_PROTO_RNDV_ALIGN, 0);
+
+            ucs::fill_random(sendbuf);
+            offset = UCP_PROTO_RNDV_ALIGN -
+                ((size_t)&recvbuf[0] % UCP_PROTO_RNDV_ALIGN) + recv_offset;
+
+            ucx_req = recv_nb(&recvbuf[offset], size, DATATYPE, 0x1337, 0xffff);
+            ASSERT_TRUE(!UCS_PTR_IS_ERR(ucx_req));
+            ASSERT_TRUE(ucx_req != NULL); /* Couldn't be completed because didn't send yet */
+
+            send_b(&sendbuf[0], size, DATATYPE, 0x111337);
+            wait(ucx_req);
+            request_free(ucx_req);
+
+            std::vector<char> recvbuf_offs(&recvbuf[offset],
+                                           &recvbuf[offset+size]);
+            EXPECT_EQ(sendbuf, recvbuf_offs);
+        }
+    }
+}
+
+UCP_INSTANTIATE_TEST_CASE(test_ucp_tag_match_rndv_align)

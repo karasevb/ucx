@@ -122,11 +122,14 @@ ucp_proto_rndv_get_zcopy_send_func(ucp_request_t *req,
     /* coverity[tainted_data_downcast] */
     const ucp_proto_rndv_bulk_priv_t *rpriv = req->send.proto_config->priv;
     size_t offset                           = req->send.state.dt_iter.offset;
-    size_t max_payload;
+    size_t max_payload, aligned_payload;
     uct_iov_t iov;
 
     max_payload = ucp_proto_rndv_bulk_max_payload(req, rpriv, lpriv);
-    ucp_datatype_iter_next_iov(&req->send.state.dt_iter, max_payload,
+    aligned_payload =
+        ucp_proto_rndv_adjust_align_next_frag(req, rpriv, lpriv, max_payload);
+
+    ucp_datatype_iter_next_iov(&req->send.state.dt_iter, aligned_payload,
                                lpriv->super.md_index,
                                UCS_BIT(UCP_DATATYPE_CONTIG), next_iter, &iov,
                                1);

@@ -11,6 +11,8 @@
 
 #include <ucp/proto/proto_multi.h>
 
+#define UCP_PROTO_RNDV_ALIGN           256
+#define UCP_PROTO_RNDV_MIN_SINGLE_SIZE 4096
 
 /**
  * Rendezvous protocol which sends a control message to the remote peer, and not
