@@ -165,7 +165,7 @@ ucp_proto_multi_progress(ucp_request_t *req,
      * Sending aligning frag and main part thru the same lane.
      */
     lane_idx = req->send.multi_lane_idx +
-        !!!ucp_proto_rndv_request_is_align_frag(req);
+        !ucp_proto_rndv_request_is_align_frag(req);
     req->flags &= ~UCP_REQUEST_FLAG_RNDV_ALIGN_FRAG;
 
     if (lane_idx >= mpriv->num_lanes) {
