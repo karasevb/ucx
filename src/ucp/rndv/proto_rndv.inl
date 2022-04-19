@@ -322,15 +322,15 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
                                  total_offset);
     buffer_is_aligned = !(((size_t)buffer) % UCP_PROTO_RNDV_ALIGN);
 
-    if (ucs_unlikely(is_max_frag && buffer_is_aligned)) {
-        return max_payload;
-    }
-
     if ((!total_offset && !is_max_frag) || (is_max_frag && !buffer_is_aligned)) {
         if (ucs_unlikely(total_length <= (2 * UCP_PROTO_RNDV_ALIGN))) {
             return total_length;
         }
         goto first_frag;
+    }
+
+    if (ucs_unlikely(is_max_frag && buffer_is_aligned)) {
+        return max_payload;
     }
 
     ucs_assertv(total_length >= total_offset,
