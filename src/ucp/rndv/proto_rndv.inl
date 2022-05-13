@@ -304,12 +304,12 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
                                       const size_t max_payload)
 {
-    size_t min_frag      = rpriv->mpriv.min_frag;
-    size_t max_frag      = lpriv->max_frag;
-    size_t total_offset  = ucp_proto_rndv_total_offset(req);
-    size_t total_length  = ucp_proto_rndv_request_total_length(req);
-    unsigned is_max_frag = (total_length >= rpriv->mpriv.max_frag_sum);
-    size_t align_frag, remain_length;
+    size_t min_frag       = rpriv->mpriv.min_frag;
+    size_t max_frag       = lpriv->max_frag;
+    size_t total_offset   = ucp_proto_rndv_total_offset(req);
+    size_t total_length   = ucp_proto_rndv_request_total_length(req);
+    unsigned is_max_frag  = (total_length >= rpriv->mpriv.max_frag_sum);
+    size_t align_frag, remain_length, align_thresh;
     void *buffer;
     unsigned buffer_is_aligned;
 
@@ -317,6 +317,11 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
                 "dt_class=%d (%s)",
                 req->send.state.dt_iter.dt_class,
                 ucp_datatype_class_names[req->send.state.dt_iter.dt_class]);
+
+    align_thresh = req->send.ep->worker->context->config.ext.rndv_align_thresh;
+    if (ucs_likely(align_thresh > total_length)) {
+        return max_payload;
+    }
 
     buffer = UCS_PTR_BYTE_OFFSET(req->send.state.dt_iter.type.contig.buffer,
                                  total_offset);

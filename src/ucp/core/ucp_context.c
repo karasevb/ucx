@@ -417,6 +417,10 @@ static ucs_config_field_t ucp_config_table[] = {
   {"RCACHE_ENABLE", "try", "Use user space memory registration cache.",
    ucs_offsetof(ucp_config_t, enable_rcache), UCS_CONFIG_TYPE_TERNARY},
 
+  {"RNDV_ALIGN_THRESH", "65536",
+   "Threshold for enabling data split alignment in the rendezvous protocol.",
+   ucs_offsetof(ucp_config_t, ctx.rndv_align_thresh), UCS_CONFIG_TYPE_MEMUNITS},
+
    {NULL}
 };
 UCS_CONFIG_REGISTER_TABLE(ucp_config_table, "UCP context", NULL, ucp_config_t,
