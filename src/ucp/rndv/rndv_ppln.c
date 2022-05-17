@@ -54,14 +54,14 @@ ucp_proto_rndv_ppln_init(const ucp_proto_init_params_t *init_params)
     if ((select_param->dt_class != UCP_DATATYPE_CONTIG) ||
         ((select_param->op_id != UCP_OP_ID_RNDV_SEND) &&
          (select_param->op_id != UCP_OP_ID_RNDV_RECV)) ||
-        (init_params->select_param->op_flags &
-         UCP_PROTO_SELECT_OP_FLAG_PPLN_FRAG)) {
+        ucp_proto_rndv_init_params_is_ppln_frag(init_params)) {
         return UCS_ERR_UNSUPPORTED;
     }
 
     /* Select a protocol for rndv recv */
     sel_param          = *init_params->select_param;
     sel_param.op_flags = UCP_PROTO_SELECT_OP_FLAG_PPLN_FRAG |
+                         UCP_PROTO_SELECT_OP_FLAG_INTERNAL |
                          ucp_proto_select_op_attr_to_flags(
                                  UCP_OP_ATTR_FLAG_MULTI_SEND);
 

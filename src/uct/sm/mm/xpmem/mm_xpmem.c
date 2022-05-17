@@ -419,7 +419,9 @@ uct_xmpem_mem_dereg(uct_md_h md,
 }
 
 static ucs_status_t
-uct_xpmem_mkey_pack(uct_md_h md, uct_mem_h memh, void *rkey_buffer)
+uct_xpmem_mkey_pack(uct_md_h tl_md, uct_mem_h memh,
+                    const uct_md_mkey_pack_params_t *params,
+                    void *rkey_buffer)
 {
     uct_mm_seg_t                    *seg = memh;
     uct_xpmem_packed_rkey_t *packed_rkey = rkey_buffer;
@@ -545,16 +547,12 @@ static uct_mm_md_mapper_ops_t uct_xpmem_md_ops = {
     .is_reachable      = ucs_empty_function_return_one_int
 };
 
-UCT_MM_TL_DEFINE(xpmem, &uct_xpmem_md_ops, uct_xpmem_rkey_unpack,
-                 uct_xpmem_rkey_release, "XPMEM_",
-                 uct_xpmem_iface_config_table);
-
-UCS_F_CTOR UCT_TL_INIT(xpmem)
+static void uct_xpmem_global_init()
 {
     ucs_recursive_spinlock_init(&uct_xpmem_remote_mem_lock, 0);
 }
 
-UCS_F_DTOR UCT_TL_CLEANUP(xpmem)
+static void uct_xpmem_global_cleanup()
 {
     unsigned long num_leaked_segments;
     uct_xpmem_remote_mem_t *rmem;
@@ -576,3 +574,9 @@ UCS_F_DTOR UCT_TL_CLEANUP(xpmem)
     ucs_recursive_spinlock_destroy(&uct_xpmem_remote_mem_lock);
 }
 
+UCT_MM_TL_DEFINE(xpmem, &uct_xpmem_md_ops, uct_xpmem_rkey_unpack,
+                 uct_xpmem_rkey_release, "XPMEM_",
+                 uct_xpmem_iface_config_table);
+
+UCT_SINGLE_TL_INIT(&uct_xpmem_component.super, xpmem, ctor,
+                   uct_xpmem_global_init(), uct_xpmem_global_cleanup())

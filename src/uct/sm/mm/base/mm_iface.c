@@ -173,6 +173,7 @@ static ucs_status_t uct_mm_iface_query(uct_iface_h tl_iface,
 
     status = uct_mm_md_mapper_ops(md)->query(&attach_shm_file);
     ucs_assert_always(status == UCS_OK);
+
     if (attach_shm_file) {
         /*
          * Only MM transports with attaching to SHM file can support error
@@ -181,6 +182,8 @@ static ucs_status_t uct_mm_iface_query(uct_iface_h tl_iface,
          * memory block of a peer leads to "bus" error in case of a peer is
          * down) */
         iface_attr->cap.flags |= UCT_IFACE_FLAG_EP_CHECK;
+    } else {
+        iface_attr->cap.flags &= ~UCT_IFACE_FLAG_ERRHANDLE_PEER_FAILURE;
     }
 
     iface_attr->cap.event_flags         = UCT_IFACE_FLAG_EVENT_SEND_COMP     |
@@ -537,6 +540,10 @@ uct_mm_estimate_perf(uct_iface_h tl_iface, uct_perf_attr_t *perf_attr)
 
     if (perf_attr->field_mask & UCT_PERF_ATTR_FIELD_LATENCY) {
         perf_attr->latency = UCT_MM_IFACE_LATENCY;
+    }
+
+    if (perf_attr->field_mask & UCT_PERF_ATTR_FIELD_MAX_INFLIGHT_EPS) {
+        perf_attr->max_inflight_eps = SIZE_MAX;
     }
 
     return UCS_OK;

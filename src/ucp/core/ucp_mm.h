@@ -39,10 +39,10 @@ typedef struct ucp_mem {
  * Memory descriptor.
  * Contains a memory handle of the chunk it belongs to.
  */
-typedef struct ucp_mem_desc {
+struct ucp_mem_desc {
     ucp_mem_h           memh;
     void                *ptr;
-} ucp_mem_desc_t;
+};
 
 
 /**
@@ -134,7 +134,8 @@ ucs_status_t ucp_memh_get_slow(ucp_context_h context, void *address,
                                ucp_md_map_t reg_md_map, unsigned uct_flags,
                                ucp_mem_h *memh_p);
 
-void ucp_memh_dereg(ucp_context_h context, ucp_mem_h memh, ucp_md_map_t md_map);
+void ucp_memh_unmap(ucp_context_h context, ucp_mem_h memh,
+                    ucp_md_map_t md_map);
 
 ucs_status_t ucp_mem_rcache_init(ucp_context_h context);
 
@@ -181,6 +182,7 @@ static UCS_F_ALWAYS_INLINE size_t ucp_memh_length(const ucp_mem_h memh)
 #define UCP_MEM_IS_ACCESSIBLE_FROM_CPU(_mem_type) \
     (UCS_BIT(_mem_type) & UCS_MEMORY_TYPES_CPU_ACCESSIBLE)
 #define UCP_MEM_IS_GPU(_mem_type) ((_mem_type) == UCS_MEMORY_TYPE_CUDA || \
+                                   (_mem_type) == UCS_MEMORY_TYPE_CUDA_MANAGED || \
                                    (_mem_type) == UCS_MEMORY_TYPE_ROCM)
 
 #endif

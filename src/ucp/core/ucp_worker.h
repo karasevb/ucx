@@ -332,7 +332,6 @@ typedef struct ucp_worker {
         uct_worker_cb_id_t           cb_id;               /* Keepalive callback id */
         ucs_time_t                   last_round;          /* Last round timestamp */
         ucs_list_link_t              *iter;               /* Last EP processed keepalive */
-        ucp_lane_map_t               lane_map;            /* Lane map used to retry after no-resources */
         unsigned                     ep_count;            /* Number of EPs processed in current time slot */
         unsigned                     iter_count;          /* Number of progress iterations to skip,
                                                            * used to minimize call of ucs_get_time */
@@ -352,9 +351,10 @@ typedef struct ucp_worker {
 } ucp_worker_t;
 
 
-ucs_status_t
-ucp_worker_get_ep_config(ucp_worker_h worker, const ucp_ep_config_key_t *key,
-                         int print_cfg, ucp_worker_cfg_index_t *cfg_index_p);
+ucs_status_t ucp_worker_get_ep_config(ucp_worker_h worker,
+                                      const ucp_ep_config_key_t *key,
+                                      unsigned ep_init_flags,
+                                      ucp_worker_cfg_index_t *cfg_index_p);
 
 ucs_status_t
 ucp_worker_add_rkey_config(ucp_worker_h worker,
@@ -395,11 +395,6 @@ ucs_status_t ucp_worker_discard_uct_ep(ucp_ep_h ucp_ep, uct_ep_h uct_ep,
                                        void *purge_arg,
                                        ucp_send_nbx_callback_t discarded_cb,
                                        void *discarded_cb_arg);
-
-const char *ucp_worker_print_used_tls(const ucp_ep_config_key_t *key,
-                                      ucp_context_h context,
-                                      ucp_worker_cfg_index_t config_idx,
-                                      ucs_string_buffer_t *strb);
 
 void ucp_worker_vfs_refresh(void *obj);
 

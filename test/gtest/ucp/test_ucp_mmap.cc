@@ -21,7 +21,8 @@ public:
     enum {
         VARIANT_DEFAULT,
         VARIANT_MAP_NONBLOCK,
-        VARIANT_PROTO_ENABLE
+        VARIANT_PROTO_ENABLE,
+        VARIANT_NO_RCACHE
     };
 
     static void
@@ -32,6 +33,8 @@ public:
                                "map_nb");
         add_variant_with_value(variants, UCP_FEATURE_RMA, VARIANT_PROTO_ENABLE,
                                "proto");
+        add_variant_with_value(variants, UCP_FEATURE_RMA, VARIANT_NO_RCACHE,
+                               "no_rcache");
     }
 
     virtual void init() {
@@ -43,6 +46,10 @@ public:
         sender().connect(&receiver(), get_ep_params());
         if (!is_loopback()) {
             receiver().connect(&sender(), get_ep_params());
+        }
+
+        if (get_variant_value() == VARIANT_NO_RCACHE) {
+            modify_config("RCACHE_ENABLE", "n");
         }
     }
 
@@ -298,8 +305,8 @@ void test_ucp_mmap::test_rkey_proto(ucp_mem_h memh)
 
     /* Unpack remote key buffer */
     ucp_rkey_h rkey;
-    status = ucp_ep_rkey_unpack_internal(receiver().ep(), &rkey_buffer[0],
-                                         rkey_size, &rkey);
+    status = ucp_ep_rkey_unpack_reachable(receiver().ep(), &rkey_buffer[0],
+                                          rkey_size, &rkey);
     ASSERT_UCS_OK(status);
 
     /* Check rkey configuration */

@@ -1040,19 +1040,15 @@ uct_dc_mlx5_ep_fc_pure_grant_send_completion(uct_rc_iface_send_op_t *send_op,
     uct_dc_fc_request_t *fc_req = (uct_dc_fc_request_t*)send_op->buffer;
     uct_dc_mlx5_ep_t *fc_ep     = ucs_derived_of(fc_req->super.ep,
                                                  uct_dc_mlx5_ep_t);
-    char gid_str[32];
+    char buf[128];
 
     if (ucs_likely(!(send_op->flags & UCT_RC_IFACE_SEND_OP_STATUS) ||
                    (send_op->status != UCS_ERR_CANCELED))) {
         /* Pure grant sent - release it */
         ucs_mpool_put(fc_req);
     } else {
-        ucs_trace("fc_ep %p: re-sending FC_PURE_GRANT (seq:%" PRIu64 ")"
-                  " to dct_num:0x%x, lid:%d, gid:%s",
-                  fc_ep,  fc_req->sender.payload.seq, fc_req->dct_num,
-                  fc_req->lid,
-                  uct_ib_gid_str(ucs_unaligned_ptr(&fc_req->sender.payload.gid),
-                                 gid_str, sizeof(gid_str)));
+        ucs_trace("fc_ep %p: re-sending %s", fc_ep,
+                  uct_dc_mlx5_fc_req_str(fc_req, buf, sizeof(buf)));
 
         /* Always add re-sending of FC_PURE_GRANT packet to the pending queue to
          * resend it when DCI will be restored after the failure */
@@ -1157,7 +1153,7 @@ static void uct_dc_mlx5_ep_fc_cleanup(uct_dc_mlx5_ep_t *ep)
 
     it = kh_get(uct_dc_mlx5_fc_hash, &iface->tx.fc_hash, (uint64_t)ep);
     if (it != kh_end(&iface->tx.fc_hash)) {
-        kh_del(uct_dc_mlx5_fc_hash, &iface->tx.fc_hash, it);
+        uct_dc_mlx5_fc_entry_iter_del(iface, it);
     }
 }
 
@@ -1310,9 +1306,10 @@ uct_dc_mlx5_iface_dci_do_common_pending_tx(uct_dc_mlx5_ep_t *ep,
      * arbiter group for which flush(CANCEL) was done */
     ucs_assert(!(ep->flags & UCT_DC_MLX5_EP_FLAG_FLUSH_CANCEL));
 
-    ucs_assertv(!uct_dc_mlx5_iface_dci_ep_can_send(ep),
-                "pending callback returned error, but send resources are"
-                " available");
+    ucs_assertv(!uct_dc_mlx5_iface_dci_ep_can_send(ep) ||
+                (ep == iface->tx.fc_ep),
+                "ep=%p: pending callback returned error, but send resources"
+                " are available and it is not fc_ep=%p", ep, iface->tx.fc_ep);
     return UCS_ARBITER_CB_RESULT_DESCHED_GROUP;
 }
 
@@ -1376,7 +1373,6 @@ uct_dc_mlx5_iface_dci_do_dcs_pending_tx(ucs_arbiter_t *arbiter,
                                                 uct_dc_mlx5_iface_t);
     int is_only                = ucs_arbiter_elem_is_only(elem);
     ucs_arbiter_cb_result_t res;
-    uint8_t dci;
 
     res = uct_dc_mlx5_iface_dci_do_common_pending_tx(ep, elem);
     if ((res != UCS_ARBITER_CB_RESULT_REMOVE_ELEM) || !is_only) {
@@ -1387,12 +1383,7 @@ uct_dc_mlx5_iface_dci_do_dcs_pending_tx(ucs_arbiter_t *arbiter,
      * and the dci has no outstanding operations. For example pending
      * callback did not send anything. (uct_ep_flush or just return ok)
      */
-    dci = ep->dci;
-    if (!uct_dc_mlx5_iface_dci_detach(iface, ep)) {
-        return res;
-    }
-
-    uct_dc_mlx5_iface_dci_schedule_release(iface, dci);
+    uct_dc_mlx5_iface_dci_detach(iface, ep);
     return res;
 }
 
@@ -1422,12 +1413,13 @@ uct_dc_mlx5_iface_dci_do_rand_pending_tx(ucs_arbiter_t *arbiter,
     return res;
 }
 
-ucs_arbiter_cb_result_t
-uct_dc_mlx5_ep_arbiter_purge_internal_cb(ucs_arbiter_t *arbiter,
-                                         ucs_arbiter_group_t *group,
-                                         ucs_arbiter_elem_t *elem, void *arg)
+static ucs_arbiter_cb_result_t
+uct_dc_mlx5_ep_arbiter_purge_cb(ucs_arbiter_t *arbiter, ucs_arbiter_group_t *group,
+                                ucs_arbiter_elem_t *elem, void *arg)
 {
-    uct_dc_mlx5_ep_t *ep         = arg;
+    uct_purge_cb_args_t *cb_args = arg;
+    void **priv_args             = cb_args->arg;
+    uct_dc_mlx5_ep_t *ep         = priv_args[0];
     uct_dc_mlx5_iface_t *iface   = ucs_derived_of(ep->super.super.iface,
                                                   uct_dc_mlx5_iface_t);
     uct_pending_req_t *req       = ucs_container_of(elem, uct_pending_req_t,
@@ -1448,32 +1440,14 @@ uct_dc_mlx5_ep_arbiter_purge_internal_cb(ucs_arbiter_t *arbiter,
         return UCS_ARBITER_CB_RESULT_REMOVE_ELEM;
     }
 
-    /* Non-internal request was found */
-    return UCS_ARBITER_CB_RESULT_RESCHED_GROUP;
-}
-
-static ucs_arbiter_cb_result_t
-uct_dc_mlx5_ep_arbiter_purge_cb(ucs_arbiter_t *arbiter, ucs_arbiter_group_t *group,
-                                ucs_arbiter_elem_t *elem, void *arg)
-{
-    uct_purge_cb_args_t *cb_args = arg;
-    void **priv_args             = cb_args->arg;
-    uct_dc_mlx5_ep_t *ep         = priv_args[0];
-    uct_pending_req_t *req       = ucs_container_of(elem, uct_pending_req_t,
-                                                    priv);
-    ucs_arbiter_cb_result_t result;
-
-    result = uct_dc_mlx5_ep_arbiter_purge_internal_cb(arbiter, group, elem, ep);
-    if (result == UCS_ARBITER_CB_RESULT_RESCHED_GROUP) {
-        if (cb_args->cb != NULL) {
-            cb_args->cb(req, priv_args[1]);
-        } else {
-            ucs_debug("ep=%p cancelling user pending request %p", ep, req);
-        }
-        return UCS_ARBITER_CB_RESULT_REMOVE_ELEM;
+    if (cb_args->cb != NULL) {
+        cb_args->cb(req, priv_args[1]);
+    } else {
+        ucs_debug("ep=%p cancelling user pending request %p (%s)", ep, req,
+                  ucs_debug_get_symbol_name(req->func));
     }
 
-    return result;
+    return UCS_ARBITER_CB_RESULT_REMOVE_ELEM;
 }
 
 void uct_dc_mlx5_ep_pending_purge(uct_ep_h tl_ep,
@@ -1486,29 +1460,37 @@ void uct_dc_mlx5_ep_pending_purge(uct_ep_h tl_ep,
     ucs_arbiter_t *waitq;
     ucs_arbiter_group_t *group;
     uint8_t pool_index;
-    uint8_t dci;
-
-    if (uct_dc_mlx5_iface_is_dci_rand(iface)) {
-        ucs_arbiter_group_purge(uct_dc_mlx5_iface_tx_waitq(iface),
-                                uct_dc_mlx5_ep_rand_arb_group(iface, ep),
-                                uct_dc_mlx5_ep_arbiter_purge_cb, &args);
-        return;
-    }
 
     uct_dc_mlx5_get_arbiter_params(iface, ep, &waitq, &group, &pool_index);
     ucs_arbiter_group_purge(waitq, group, uct_dc_mlx5_ep_arbiter_purge_cb,
                             &args);
 
-    if (ep->dci == UCT_DC_MLX5_EP_NO_DCI) {
-        return;
+    if ((ep->dci != UCT_DC_MLX5_EP_NO_DCI) &&
+        !uct_dc_mlx5_iface_is_dci_rand(iface)) {
+        uct_dc_mlx5_iface_dci_detach(iface, ep);
+    }
+}
+
+unsigned uct_dc_mlx5_ep_fc_hard_req_progress(void *arg)
+{
+    uct_dc_mlx5_iface_t *iface = arg;
+    ucs_time_t now             = ucs_get_time();
+    uint64_t ep_key;
+    uct_dc_mlx5_ep_t *ep;
+
+    if (ucs_likely(now < iface->tx.fc_hard_req_resend_time)) {
+        return 0;
     }
 
-    dci = ep->dci;
-    if (!uct_dc_mlx5_iface_dci_detach(iface, ep)) {
-        return;
-    }
+    /* Go over all endpoints that are waiting for FC window being restored and
+     * resend FC_HARD_REQ packet to make sure a peer will resend FC_PURE_GRANT
+     * packet in case of failure on the remote FC endpoint */
+    kh_foreach_key(&iface->tx.fc_hash, ep_key, {
+        ep = (uct_dc_mlx5_ep_t*)ep_key;
+        uct_dc_mlx5_ep_schedule(iface, ep);
+    })
 
-    uct_dc_mlx5_iface_dci_schedule_release(iface, dci);
+    return 1;
 }
 
 ucs_status_t uct_dc_mlx5_ep_check_fc(uct_dc_mlx5_iface_t *iface,
@@ -1564,19 +1546,25 @@ ucs_status_t uct_dc_mlx5_ep_check_fc(uct_dc_mlx5_iface_t *iface,
         goto out;
     }
 
+    uct_worker_progress_register_safe(
+            &iface->super.super.super.super.worker->super,
+            uct_dc_mlx5_ep_fc_hard_req_progress, iface,
+            UCS_CALLBACKQ_FLAG_FAST,
+            &iface->tx.fc_hard_req_progress_cb_id);
+
 out_set_status:
     status = ucs_likely(ep->fc.fc_wnd > 0) ? UCS_OK : UCS_ERR_NO_RESOURCE;
 out:
     return status;
 }
 
-void uct_dc_mlx5_ep_handle_failure(uct_dc_mlx5_ep_t *ep, void *arg,
+void uct_dc_mlx5_ep_handle_failure(uct_dc_mlx5_ep_t *ep,
+                                   struct mlx5_cqe64 *cqe,
                                    ucs_status_t ep_status)
 {
-    struct mlx5_cqe64 *cqe     = arg;
-    uct_iface_h tl_iface       = ep->super.super.iface;
+    uct_dc_mlx5_iface_t *iface = ucs_derived_of(ep->super.super.iface,
+                                                uct_dc_mlx5_iface_t);
     uint8_t dci_index          = ep->dci;
-    uct_dc_mlx5_iface_t *iface = ucs_derived_of(tl_iface, uct_dc_mlx5_iface_t);
     uint16_t pi                = ntohs(cqe->wqe_counter);
     uint8_t pool_index;
     UCT_DC_MLX5_TXQP_DECL(txqp, txwq);

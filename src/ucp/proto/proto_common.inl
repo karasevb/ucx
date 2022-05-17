@@ -214,8 +214,10 @@ static UCS_F_ALWAYS_INLINE ucs_status_ptr_t
 ucp_proto_request_send_op(ucp_ep_h ep, ucp_proto_select_t *proto_select,
                           ucp_worker_cfg_index_t rkey_cfg_index,
                           ucp_request_t *req, ucp_operation_id_t op_id,
-                          const void *buffer, size_t count, ucp_datatype_t datatype,
-                          size_t contig_length, const ucp_request_param_t *param)
+                          const void *buffer, size_t count,
+                          ucp_datatype_t datatype, size_t contig_length,
+                          const ucp_request_param_t *param,
+                          size_t header_length, uint16_t op_flags)
 {
     ucp_worker_h worker = ep->worker;
     ucp_proto_select_param_t sel_param;
@@ -230,12 +232,12 @@ ucp_proto_request_send_op(ucp_ep_h ep, ucp_proto_select_t *proto_select,
                           &req->send.state.dt_iter, &sg_count);
 
     ucp_proto_select_param_init(&sel_param, op_id, param->op_attr_mask,
-                                req->send.state.dt_iter.dt_class,
+                                op_flags, req->send.state.dt_iter.dt_class,
                                 &req->send.state.dt_iter.mem_info, sg_count);
 
     status = UCS_PROFILE_CALL(ucp_proto_request_lookup_proto, worker, ep, req,
                               proto_select, rkey_cfg_index, &sel_param,
-                              req->send.state.dt_iter.length);
+                              req->send.state.dt_iter.length + header_length);
     if (status != UCS_OK) {
         ucp_request_put_param(param, req);
         return UCS_STATUS_PTR(status);

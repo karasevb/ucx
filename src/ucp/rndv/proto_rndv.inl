@@ -48,8 +48,8 @@ ucp_proto_rndv_rts_request_init(ucp_request_t *req)
     status = ucp_datatype_iter_mem_reg(ep->worker->context,
                                        &req->send.state.dt_iter, rpriv->md_map,
                                        UCT_MD_MEM_ACCESS_RMA |
-                                       UCT_MD_MEM_FLAG_HIDE_ERRORS,
-                                       UCS_BIT(UCP_DATATYPE_CONTIG));
+                                               UCT_MD_MEM_FLAG_HIDE_ERRORS,
+                                       UCP_DT_MASK_ALL);
     if (status != UCS_OK) {
         return status;
     }
@@ -391,7 +391,13 @@ ucp_proto_rndv_recv_complete_status(ucp_request_t *req, ucs_status_t status)
 
     ucs_assert(!ucp_proto_rndv_request_is_ppln_frag(req));
 
-    ucp_request_complete_tag_recv(rreq, status);
+    if (rreq->flags & UCP_REQUEST_FLAG_RECV_AM) {
+        ucp_request_complete_am_recv(rreq, status);
+    } else {
+        ucs_assert(rreq->flags & UCP_REQUEST_FLAG_RECV_TAG);
+        ucp_request_complete_tag_recv(rreq, status);
+    }
+
     ucp_request_put(req);
     return UCS_OK;
 }

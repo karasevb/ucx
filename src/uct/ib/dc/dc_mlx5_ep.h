@@ -232,11 +232,6 @@ uct_dc_mlx5_iface_dci_do_rand_pending_tx(ucs_arbiter_t *arbiter,
 ucs_status_t uct_dc_mlx5_ep_pending_add(uct_ep_h tl_ep, uct_pending_req_t *r,
                                         unsigned flags);
 
-ucs_arbiter_cb_result_t
-uct_dc_mlx5_ep_arbiter_purge_internal_cb(ucs_arbiter_t *arbiter,
-                                         ucs_arbiter_group_t *group,
-                                         ucs_arbiter_elem_t *elem, void *arg);
-
 void uct_dc_mlx5_ep_pending_purge(uct_ep_h tl_ep, uct_pending_purge_callback_t cb, void *arg);
 
 void uct_dc_mlx5_ep_do_pending_fc(uct_dc_mlx5_ep_t *fc_ep,
@@ -299,7 +294,8 @@ uct_dc_mlx5_ep_from_dci(uct_dc_mlx5_iface_t *iface, uint8_t dci_index)
     return iface->tx.dcis[dci_index].ep;
 }
 
-void uct_dc_mlx5_ep_handle_failure(uct_dc_mlx5_ep_t *ep, void *arg,
+void uct_dc_mlx5_ep_handle_failure(uct_dc_mlx5_ep_t *ep,
+                                   struct mlx5_cqe64 *cqe,
                                    ucs_status_t status);
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
@@ -502,31 +498,6 @@ static inline void uct_dc_mlx5_iface_dci_alloc(uct_dc_mlx5_iface_t *iface, uct_d
     ucs_debug("iface %p: allocate dci %d for ep %p", iface, ep->dci, ep);
 }
 
-static UCS_F_ALWAYS_INLINE int
-uct_dc_mlx5_iface_dci_detach(uct_dc_mlx5_iface_t *iface, uct_dc_mlx5_ep_t *ep)
-{
-    uint8_t dci_index;
-
-    if (uct_dc_mlx5_iface_is_dci_rand(iface)) {
-        return 0;
-    }
-
-    dci_index = ep->dci;
-
-    ucs_assert(dci_index != UCT_DC_MLX5_EP_NO_DCI);
-    ucs_assert(iface->tx.dci_pool[uct_dc_mlx5_ep_pool_index(ep)].stack_top > 0);
-
-    if (uct_dc_mlx5_iface_dci_has_outstanding(iface, dci_index)) {
-        return 0;
-    }
-
-    ep->dci                      = UCT_DC_MLX5_EP_NO_DCI;
-    ep->flags                   &= ~UCT_DC_MLX5_EP_FLAG_TX_WAIT;
-    iface->tx.dcis[dci_index].ep = NULL;
-
-    return 1;
-}
-
 static UCS_F_ALWAYS_INLINE void
 uct_dc_mlx5_iface_dci_schedule_release(uct_dc_mlx5_iface_t *iface, uint8_t dci)
 {
@@ -547,6 +518,28 @@ uct_dc_mlx5_iface_dci_schedule_release(uct_dc_mlx5_iface_t *iface, uint8_t dci)
             &iface->super.super.super.super.worker->super,
             uct_dc_mlx5_ep_dci_release_progress, iface,
             UCS_CALLBACKQ_FLAG_ONESHOT, &iface->tx.dci_release_prog_id);
+}
+
+static UCS_F_ALWAYS_INLINE int
+uct_dc_mlx5_iface_dci_detach(uct_dc_mlx5_iface_t *iface, uct_dc_mlx5_ep_t *ep)
+{
+    uint8_t dci_index = ep->dci;
+
+    ucs_assert(!uct_dc_mlx5_iface_is_dci_rand(iface));
+    ucs_assert(dci_index != UCT_DC_MLX5_EP_NO_DCI);
+    ucs_assert(iface->tx.dci_pool[uct_dc_mlx5_ep_pool_index(ep)].stack_top > 0);
+
+    if (uct_dc_mlx5_iface_dci_has_outstanding(iface, dci_index)) {
+        return 0;
+    }
+
+    ep->dci                      = UCT_DC_MLX5_EP_NO_DCI;
+    ep->flags                   &= ~UCT_DC_MLX5_EP_FLAG_TX_WAIT;
+    iface->tx.dcis[dci_index].ep = NULL;
+
+    uct_dc_mlx5_iface_dci_schedule_release(iface, dci_index);
+
+    return 1;
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t

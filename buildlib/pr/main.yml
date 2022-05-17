@@ -1,12 +1,16 @@
 variables:
   DOCKER_OPT_VOLUMES: -v /hpc/local:/hpc/local -v /auto/sw_tools:/auto/sw_tools
-  DOCKER_OPT_GPU: --gpus all --ulimit memlock=-1:-1 --device=/dev/infiniband/
+  DOCKER_OPT_IB: --ulimit memlock=-1:-1 --device=/dev/infiniband/
+  DOCKER_OPT_GPU: --gpus all $(DOCKER_OPT_IB)
 
 resources:
   containers:
     - container: centos7
       image: rdmz-harbor.rdmz.labs.mlnx/ucx/centos7:4
       options: $(DOCKER_OPT_VOLUMES)
+    - container: centos7_ib
+      image: rdmz-harbor.rdmz.labs.mlnx/ucx/centos7:5
+      options: $(DOCKER_OPT_VOLUMES) $(DOCKER_OPT_IB) --cap-add=CAP_SYS_PTRACE --net host
     - container: centos7_cuda11
       image: rdmz-harbor.rdmz.labs.mlnx/ucx/centos7-mofed5.4-cuda11:1
       options: --net=host $(DOCKER_OPT_VOLUMES) $(DOCKER_OPT_GPU)
@@ -32,6 +36,9 @@ resources:
       options: $(DOCKER_OPT_VOLUMES)
     - container: rhel82
       image: rdmz-harbor.rdmz.labs.mlnx/swx-infra/x86_64/rhel8.2/builder:mofed-5.0-1.0.0.0
+      options: $(DOCKER_OPT_VOLUMES)
+    - container: rhel90
+      image: rdmz-harbor.rdmz.labs.mlnx/swx-infra/x86_64/rhel9.0/builder:mofed-5.6-0.5.0.0
       options: $(DOCKER_OPT_VOLUMES)
     - container: ubuntu2004
       image: rdmz-harbor.rdmz.labs.mlnx/swx-infra/x86_64/ubuntu20.04/builder:mofed-5.0-1.0.0.0
@@ -172,15 +179,31 @@ stages:
             ubuntu2004:
               CONTAINER: ubuntu2004
               long_test: yes
+              test_static: yes
+              extra_modules: ""
+              extra_tls: ""
+              run_tls: ""
             ubuntu1804:
               CONTAINER: ubuntu1804
+              test_static: yes
+              extra_modules: ""
+              extra_tls: ""
+              run_tls: ""
             sles15sp2:
               CONTAINER: sles15sp2
             rhel82:
               CONTAINER: rhel82
+            rhel90:
+              CONTAINER: rhel90
             fedora34:
               CONTAINER: fedora34
               long_test: yes
+            centos7:
+              CONTAINER: centos7_ib
+              test_static: yes
+              extra_modules: ucx-ib ucx-cma ucx-rdmacm
+              extra_tls: dc_mlx5 rc_mlx5 ud_mlx5 rc_verbs ud_verbs cma
+              run_tls: ib rc rc_v rc_x dc dc_x ud ud_v ud_x shm sm
         container: $[ variables['CONTAINER'] ]
         timeoutInMinutes: 340
 
@@ -195,6 +218,11 @@ stages:
             env:
               BUILD_ID: "$(Build.BuildId)-$(Build.BuildNumber)"
               long_test: $(long_test)
+              test_static: $(test_static)
+              EXTRA_MODULES: $(extra_modules)
+              EXTRA_TLS: $(extra_tls)
+              RUN_TLS: $(run_tls)
+              EXECUTOR_NUMBER: $(AZP_AGENT_ID)
 
   - stage: Distro
     dependsOn: [Static_check]
@@ -245,6 +273,11 @@ stages:
           - ucx_docker -equals yes
           - ucx_amd -equals no
         container: centos7
+    - template: tests.yml
+      parameters:
+        name: BlueField
+        demands: ucx_bf -equals yes
+        test_perf: 0
 
   - stage: io_demo
     dependsOn: [Static_check]

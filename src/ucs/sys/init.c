@@ -88,7 +88,7 @@ static void ucs_modules_load()
     UCS_MODULE_FRAMEWORK_LOAD(ucs, UCS_MODULE_LOAD_FLAG_GLOBAL);
 }
 
-static void UCS_F_CTOR ucs_init()
+void UCS_F_CTOR ucs_init()
 {
     ucs_status_t status;
 
@@ -132,7 +132,7 @@ static void UCS_F_DTOR ucs_cleanup(void)
     ucs_stats_cleanup();
 #endif
     ucs_memtype_cache_cleanup();
-    ucs_opts_cleanup();
+    ucs_cleanup_ucm_opts();
     ucs_global_opts_cleanup();
     ucs_log_cleanup();
 }

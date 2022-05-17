@@ -26,6 +26,16 @@
 #define UCP_PROTO_SELECT_OP_FLAG_PPLN_FRAG (UCP_PROTO_SELECT_OP_FLAGS_BASE << 0)
 
 
+/* Select a protocol as part of performance estimation of another protocol,
+   rather for actually sending a request */
+#define UCP_PROTO_SELECT_OP_FLAG_INTERNAL (UCP_PROTO_SELECT_OP_FLAGS_BASE << 1)
+
+
+/* Select eager/rendezvous protocol for Active Message sends */
+#define UCP_PROTO_SELECT_OP_FLAG_AM_EAGER (UCP_PROTO_SELECT_OP_FLAGS_BASE << 2)
+#define UCP_PROTO_SELECT_OP_FLAG_AM_RNDV  (UCP_PROTO_SELECT_OP_FLAGS_BASE << 3)
+
+
 /** Maximal length of ucp_proto_select_param_str() */
 #define UCP_PROTO_SELECT_PARAM_STR_MAX 128
 
@@ -166,9 +176,9 @@ void ucp_proto_config_query(ucp_worker_h worker,
                             ucp_proto_query_attr_t *proto_attr);
 
 
-void ucp_proto_select_elem_query(ucp_worker_h worker,
-                                 const ucp_proto_select_elem_t *select_elem,
-                                 size_t msg_length,
-                                 ucp_proto_query_attr_t *proto_attr);
+int ucp_proto_select_elem_query(ucp_worker_h worker,
+                                const ucp_proto_select_elem_t *select_elem,
+                                size_t msg_length,
+                                ucp_proto_query_attr_t *proto_attr);
 
 #endif

@@ -21,6 +21,8 @@ nobase_dist_libucp_la_HEADERS = \
 	api/ucp.h
 
 noinst_HEADERS = \
+	am/eager.inl \
+	am/ucp_am.inl \
 	core/ucp_am.h \
 	core/ucp_context.h \
 	core/ucp_ep.h \
@@ -66,6 +68,7 @@ noinst_HEADERS = \
 	rndv/proto_rndv.inl \
 	rndv/rndv_mtype.inl \
 	rndv/rndv.h \
+	rndv/rndv.inl \
 	tag/eager.h \
 	tag/proto_eager.inl \
 	tag/tag_rndv.h \
@@ -95,6 +98,9 @@ noinst_HEADERS                += api/ucpx.h
 endif
 
 libucp_la_SOURCES = \
+	am/eager_single.c \
+	am/eager_multi.c \
+	am/rndv.c \
 	core/ucp_context.c \
 	core/ucp_am.c \
 	core/ucp_ep.c \
@@ -142,6 +148,8 @@ libucp_la_SOURCES = \
 	rndv/rndv_rtr.c \
 	rndv/rndv_rkey_ptr.c \
 	rndv/rndv.c \
+	stream/stream_recv.c \
+	stream/stream_send.c \
 	tag/eager_multi.c \
 	tag/eager_rcv.c \
 	tag/eager_snd.c \
@@ -158,8 +166,4 @@ libucp_la_SOURCES = \
 	wireup/select.c \
 	wireup/wireup_ep.c \
 	wireup/wireup.c \
-	wireup/wireup_cm.c \
-	stream/stream_send.c \
-	stream/stream_recv.c \
-	am/eager.c
-
+	wireup/wireup_cm.c

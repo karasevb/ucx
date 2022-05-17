@@ -136,7 +136,9 @@ static ucs_status_t uct_sysv_mem_free(uct_md_h tl_md, uct_mem_h memh)
 }
 
 static ucs_status_t
-uct_sysv_md_mkey_pack(uct_md_h md, uct_mem_h memh, void *rkey_buffer)
+uct_sysv_md_mkey_pack(uct_md_h md, uct_mem_h memh,
+                      const uct_md_mkey_pack_params_t *params,
+                      void *rkey_buffer)
 {
     uct_sysv_packed_rkey_t *packed_rkey = rkey_buffer;
     const uct_mm_seg_t     *seg         = memh;
@@ -214,11 +216,4 @@ UCT_MM_TL_DEFINE(sysv, &uct_sysv_md_ops, uct_sysv_rkey_unpack,
                  uct_sysv_rkey_release, "SYSV_",
                  uct_sysv_iface_config_table);
 
-UCT_TL_INIT(sysv)
-{
-}
-
-UCT_TL_CLEANUP(sysv)
-{
-}
-
+UCT_SINGLE_TL_INIT(&uct_sysv_component.super, sysv,,,)
