@@ -271,47 +271,17 @@ ucp_proto_rndv_bulk_max_payload(ucp_request_t *req,
 }
 
 static UCS_F_ALWAYS_INLINE size_t
-ucp_proto_rndv_align_frag(size_t max_payload, size_t min_frag, size_t max_frag)
-{
-    ucs_assertv(max_frag > min_frag, "max_frag=%zu min_frag=%zu", max_frag,
-                min_frag);
-
-    if (max_payload < min_frag) {
-        return ucs_align_up(min_frag, UCP_PROTO_RNDV_ALIGN);
-    }
-
-    return ucs_min(ucs_align_down(max_frag, UCP_PROTO_RNDV_ALIGN),
-                   ucs_align_up(max_payload, UCP_PROTO_RNDV_ALIGN));
-}
-
-static UCS_F_ALWAYS_INLINE size_t
-ucp_proto_rndv_align_first_frag(ucp_request_t *req, void *buffer,
-                                size_t min_frag, size_t max_frag,
-                                size_t max_payload)
-{
-    size_t remain = (size_t)buffer % UCP_PROTO_RNDV_ALIGN;
-
-    if (0 == remain) {
-        return ucp_proto_rndv_align_frag(max_payload, min_frag, max_frag);
-    }
-    req->flags |= UCP_REQUEST_FLAG_RNDV_ALIGN_FRAG;
-    return ucs_align_up((min_frag + remain), UCP_PROTO_RNDV_ALIGN) - remain;
-}
-
-static UCS_F_ALWAYS_INLINE size_t
 ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
                                       const ucp_proto_rndv_bulk_priv_t *rpriv,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
                                       const size_t max_payload)
 {
     size_t min_frag       = rpriv->mpriv.min_frag;
-    size_t max_frag       = lpriv->max_frag;
     size_t total_offset   = ucp_proto_rndv_total_offset(req);
     size_t total_length   = ucp_proto_rndv_request_total_length(req);
-    unsigned is_max_frag  = (total_length >= rpriv->mpriv.max_frag_sum);
-    size_t align_frag, remain_length, align_thresh;
+    size_t align_thresh, align_size;
     void *buffer;
-    unsigned buffer_is_aligned;
+    unsigned buffer_padding;
 
     ucs_assertv(req->send.state.dt_iter.dt_class == UCP_DATATYPE_CONTIG,
                 "dt_class=%d (%s)",
@@ -319,43 +289,22 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
                 ucp_datatype_class_names[req->send.state.dt_iter.dt_class]);
 
     align_thresh = req->send.ep->worker->context->config.ext.rndv_align_thresh;
-    if (ucs_likely(align_thresh > total_length)) {
+    if (align_thresh > total_length) {
         return max_payload;
     }
 
     buffer = UCS_PTR_BYTE_OFFSET(req->send.state.dt_iter.type.contig.buffer,
                                  total_offset);
-    buffer_is_aligned = !(((size_t)buffer) % UCP_PROTO_RNDV_ALIGN);
+    buffer_padding = ((size_t)buffer) % UCP_PROTO_RNDV_ALIGN;
 
-    if ((!total_offset && !is_max_frag) || (is_max_frag && !buffer_is_aligned)) {
-        if (ucs_unlikely(total_length <= (2 * UCP_PROTO_RNDV_ALIGN))) {
-            return total_length;
-        }
-        goto first_frag;
-    }
-
-    if (ucs_unlikely(is_max_frag && buffer_is_aligned)) {
+    align_size = ucs_align_up((min_frag + buffer_padding), UCP_PROTO_RNDV_ALIGN) -
+        buffer_padding;
+    if ((!buffer_padding) || (align_size >= max_payload)) {
         return max_payload;
     }
+    req->flags |= UCP_REQUEST_FLAG_RNDV_ALIGN_FRAG;
 
-    ucs_assertv(total_length >= total_offset,
-                "total_length=%zu total_offset=%zu", total_length,
-                total_offset);
-    ucs_assertv(total_length > (2 * UCP_PROTO_RNDV_ALIGN), "total_length=%zu",
-                total_length);
-    ucs_assert(buffer_is_aligned);
-
-    remain_length = total_length - total_offset;
-    align_frag    = ucp_proto_rndv_align_frag(max_payload, min_frag, max_frag);
-    if ((remain_length <= max_frag) &&
-        (remain_length - align_frag) <= UCP_PROTO_RNDV_MIN_SINGLE_SIZE) {
-            return remain_length;
-    }
-    return align_frag;
-
-first_frag:
-    return ucp_proto_rndv_align_first_frag(req, buffer, min_frag, max_frag,
-                                           max_payload);
+    return align_size;
 }
 
 static UCS_F_ALWAYS_INLINE int

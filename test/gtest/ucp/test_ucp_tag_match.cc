@@ -944,6 +944,7 @@ public:
 
     void init() {
         modify_config("RNDV_THRESH", "0");
+        modify_config("RNDV_ALIGN_THRESH", "0");
         modify_config("RNDV_SCHEME", rndv_schemes[rndv_scheme()]);
         test_ucp_tag_match::init();
     }
