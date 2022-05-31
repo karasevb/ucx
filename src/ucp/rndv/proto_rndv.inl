@@ -202,6 +202,12 @@ ucp_proto_rndv_request_total_length(ucp_request_t *req)
     return req->send.state.dt_iter.length;
 }
 
+static UCS_F_ALWAYS_INLINE size_t
+ucp_proto_rndv_request_total_offset(ucp_request_t *req)
+{
+    return req->send.rndv.offset + req->send.state.dt_iter.offset;
+}
+
 static UCS_F_ALWAYS_INLINE void
 ucp_proto_rndv_bulk_request_init(ucp_request_t *req,
                                  const ucp_proto_rndv_bulk_priv_t *rpriv)
@@ -214,12 +220,6 @@ ucp_proto_rndv_bulk_request_init(ucp_request_t *req,
     ucp_proto_multi_set_send_lane(req);
 }
 
-static UCS_F_ALWAYS_INLINE size_t
-ucp_proto_rndv_total_offset(ucp_request_t *req)
-{
-    return req->send.rndv.offset + req->send.state.dt_iter.offset;
-}
-
 /**
  * Calculate how much data to send on the next lane in a rendezvous protocol,
  * including when the request is a fragment and starts from nonzero offset.
@@ -229,7 +229,7 @@ ucp_proto_rndv_bulk_max_payload(ucp_request_t *req,
                                 const ucp_proto_rndv_bulk_priv_t *rpriv,
                                 const ucp_proto_multi_lane_priv_t *lpriv)
 {
-    size_t total_offset = ucp_proto_rndv_total_offset(req);
+    size_t total_offset = ucp_proto_rndv_request_total_offset(req);
     size_t total_length = ucp_proto_rndv_request_total_length(req);
     size_t max_frag_sum = rpriv->mpriv.max_frag_sum;
     size_t lane_offset, max_payload, scaled_length;
@@ -277,7 +277,7 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
                                       const size_t max_payload)
 {
     size_t min_frag       = rpriv->mpriv.min_frag;
-    size_t total_offset   = ucp_proto_rndv_total_offset(req);
+    size_t total_offset   = ucp_proto_rndv_request_total_offset(req);
     size_t total_length   = ucp_proto_rndv_request_total_length(req);
     size_t align_thresh, align_size;
     void *buffer;
@@ -296,9 +296,8 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
     buffer = UCS_PTR_BYTE_OFFSET(req->send.state.dt_iter.type.contig.buffer,
                                  total_offset);
     buffer_padding = ((size_t)buffer) % UCP_PROTO_RNDV_ALIGN;
-
-    align_size = ucs_align_up((min_frag + buffer_padding), UCP_PROTO_RNDV_ALIGN) -
-        buffer_padding;
+    align_size     = ucs_align_up((min_frag + buffer_padding),
+                                  UCP_PROTO_RNDV_ALIGN) - buffer_padding;
     if ((!buffer_padding) || (align_size >= max_payload)) {
         return max_payload;
     }
