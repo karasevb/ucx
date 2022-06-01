@@ -276,9 +276,9 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
                                       const size_t max_payload)
 {
-    size_t min_frag       = rpriv->mpriv.min_frag;
-    size_t total_offset   = ucp_proto_rndv_request_total_offset(req);
-    size_t total_length   = ucp_proto_rndv_request_total_length(req);
+    size_t min_frag     = rpriv->mpriv.min_frag;
+    size_t total_offset = ucp_proto_rndv_request_total_offset(req);
+    size_t total_length = ucp_proto_rndv_request_total_length(req);
     size_t align_thresh, align_size;
     void *buffer;
     unsigned buffer_padding;
