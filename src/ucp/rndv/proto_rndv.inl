@@ -270,11 +270,16 @@ ucp_proto_rndv_bulk_max_payload(ucp_request_t *req,
     return max_payload;
 }
 
+/**
+ * Return the fragment size to ensure alignment for buffer of main data
+ * portion. Either return max_payload when the buffer is initially aligned,
+ * or alignment fragment already sent.
+ */
 static UCS_F_ALWAYS_INLINE size_t
-ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
-                                      const ucp_proto_rndv_bulk_priv_t *rpriv,
-                                      const ucp_proto_multi_lane_priv_t *lpriv,
-                                      const size_t max_payload)
+ucp_proto_rndv_adjust_to_alignment(ucp_request_t *req,
+                                   const ucp_proto_rndv_bulk_priv_t *rpriv,
+                                   const ucp_proto_multi_lane_priv_t *lpriv,
+                                   const size_t max_payload)
 {
     size_t min_frag     = rpriv->mpriv.min_frag;
     size_t total_offset = ucp_proto_rndv_request_total_offset(req);
@@ -306,7 +311,7 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
     if ((!buffer_padding) || (align_size >= max_payload)) {
         return max_payload;
     }
-    req->flags |= UCP_REQUEST_FLAG_RNDV_ALIGN_FRAG;
+    req->flags |= UCP_REQUEST_FLAG_RNDV_ALIGNING_FRAG;
 
     return align_size;
 }

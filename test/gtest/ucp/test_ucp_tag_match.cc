@@ -992,7 +992,7 @@ UCS_TEST_P(test_ucp_tag_match_rndv_align, recv_align)
                                       UCS_SYS_PCI_MAX_PAYLOAD, 0);
 
             ucs::fill_random(sendbuf);
-            offset = UCP_PROTO_RNDV_ALIGN -
+            offset = UCS_SYS_PCI_MAX_PAYLOAD -
                 ((size_t)&recvbuf[0] % UCS_SYS_PCI_MAX_PAYLOAD) + recv_offset;
 
             ucx_req = recv_nb(&recvbuf[offset], size, DATATYPE, 0x1337, 0xffff);

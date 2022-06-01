@@ -118,9 +118,9 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_handle_send_error(
 }
 
 static UCS_F_ALWAYS_INLINE int
-ucp_proto_rndv_request_is_align_frag(ucp_request_t *req)
+ucp_proto_rndv_request_is_aligning_frag(ucp_request_t *req)
 {
-    return req->flags & UCP_REQUEST_FLAG_RNDV_ALIGN_FRAG;
+    return req->flags & UCP_REQUEST_FLAG_RNDV_ALIGNING_FRAG;
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
@@ -165,8 +165,8 @@ ucp_proto_multi_progress(ucp_request_t *req,
      * Sending aligning frag and main part thru the same lane.
      */
     lane_idx = req->send.multi_lane_idx +
-        !ucp_proto_rndv_request_is_align_frag(req);
-    req->flags &= ~UCP_REQUEST_FLAG_RNDV_ALIGN_FRAG;
+        !ucp_proto_rndv_request_is_aligning_frag(req);
+    req->flags &= ~UCP_REQUEST_FLAG_RNDV_ALIGNING_FRAG;
 
     if (lane_idx >= mpriv->num_lanes) {
         lane_idx = 0;
