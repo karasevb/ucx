@@ -950,7 +950,8 @@ public:
         test_ucp_tag_match::init();
     }
 
-    static void get_test_variants(std::vector<ucp_test_variant>& variants) {
+    static void get_test_variants(std::vector<ucp_test_variant>& variants)
+    {
         for (int rndv_scheme = 0; rndv_scheme < RNDV_SCHEME_LAST; ++rndv_scheme) {
             add_variant_with_value(variants, get_ctx_params(),
                                    rndv_scheme | ENABLE_PROTO,
