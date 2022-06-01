@@ -11,8 +11,6 @@
 
 #include <ucp/proto/proto_multi.h>
 
-#define UCP_PROTO_RNDV_ALIGN           256
-
 /**
  * Rendezvous protocol which sends a control message to the remote peer, and not
  * actually transferring bulk data. The remote peer is expected to perform the

@@ -282,6 +282,8 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
     size_t align_thresh, align_size;
     void *buffer;
     unsigned buffer_padding;
+    size_t align;
+    uct_iface_attr_t *attrs;
 
     ucs_assertv(req->send.state.dt_iter.dt_class == UCP_DATATYPE_CONTIG,
                 "dt_class=%d (%s)",
@@ -293,11 +295,15 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
         return max_payload;
     }
 
+    attrs = ucp_worker_iface_get_attr(req->send.ep->worker,
+                                      ucp_ep_get_rsc_index(req->send.ep,
+                                                           lpriv->super.lane));
+    align = attrs->cap.get.opt_zcopy_align;
     buffer = UCS_PTR_BYTE_OFFSET(req->send.state.dt_iter.type.contig.buffer,
                                  total_offset);
-    buffer_padding = ((size_t)buffer) % UCP_PROTO_RNDV_ALIGN;
+    buffer_padding = ((size_t)buffer) % align;
     align_size     = ucs_align_up((min_frag + buffer_padding),
-                                  UCP_PROTO_RNDV_ALIGN) - buffer_padding;
+                                  align) - buffer_padding;
     if ((!buffer_padding) || (align_size >= max_payload)) {
         return max_payload;
     }

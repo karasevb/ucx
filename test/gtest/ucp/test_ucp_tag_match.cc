@@ -967,7 +967,7 @@ const std::string test_ucp_tag_match_rndv_align::rndv_schemes[] = { "get_zcopy" 
 
 UCS_TEST_P(test_ucp_tag_match_rndv_align, recv_align) {
     size_t recv_offsets[4];
-    size_t sizes[] = { UCP_PROTO_RNDV_ALIGN, 1000, 2000, 8000,
+    size_t sizes[] = { UCS_SYS_PCI_MAX_PAYLOAD, 1000, 2000, 8000,
                        ucs::limit_buffer_size(2500ul * UCS_MBYTE) };
     request *ucx_req;
 
@@ -975,8 +975,8 @@ UCS_TEST_P(test_ucp_tag_match_rndv_align, recv_align) {
 
     recv_offsets[0] = 0;
     recv_offsets[1] = min_frag();
-    recv_offsets[2] = UCP_PROTO_RNDV_ALIGN - 1;
-    recv_offsets[3] = ucs::rand() % UCP_PROTO_RNDV_ALIGN + 1;
+    recv_offsets[2] = UCS_SYS_PCI_MAX_PAYLOAD - 1;
+    recv_offsets[3] = ucs::rand() % UCS_SYS_PCI_MAX_PAYLOAD + 1;
 
     for (unsigned i = 0; i < ucs_static_array_size(recv_offsets); i++) {
         for (unsigned j = 0; j < ucs_static_array_size(sizes); j++) {
@@ -986,11 +986,11 @@ UCS_TEST_P(test_ucp_tag_match_rndv_align, recv_align) {
             size_t offset;
             std::vector<char> sendbuf(size, 0);
             std::vector<char> recvbuf(size + recv_offset +
-                                      UCP_PROTO_RNDV_ALIGN, 0);
+                                      UCS_SYS_PCI_MAX_PAYLOAD, 0);
 
             ucs::fill_random(sendbuf);
             offset = UCP_PROTO_RNDV_ALIGN -
-                ((size_t)&recvbuf[0] % UCP_PROTO_RNDV_ALIGN) + recv_offset;
+                ((size_t)&recvbuf[0] % UCS_SYS_PCI_MAX_PAYLOAD) + recv_offset;
 
             ucx_req = recv_nb(&recvbuf[offset], size, DATATYPE, 0x1337, 0xffff);
             ASSERT_TRUE(!UCS_PTR_IS_ERR(ucx_req));
