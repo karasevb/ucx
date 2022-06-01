@@ -286,8 +286,7 @@ ucp_proto_rndv_adjust_align_next_frag(ucp_request_t *req,
     uct_iface_attr_t *attrs;
 
     ucs_assertv(req->send.state.dt_iter.dt_class == UCP_DATATYPE_CONTIG,
-                "dt_class=%d (%s)",
-                req->send.state.dt_iter.dt_class,
+                "dt_class=%d (%s)", req->send.state.dt_iter.dt_class,
                 ucp_datatype_class_names[req->send.state.dt_iter.dt_class]);
 
     align_thresh = req->send.ep->worker->context->config.ext.rndv_align_thresh;
