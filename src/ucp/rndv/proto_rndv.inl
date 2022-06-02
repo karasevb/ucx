@@ -302,7 +302,7 @@ ucp_proto_rndv_adjust_to_alignment(ucp_request_t *req,
     attrs = ucp_worker_iface_get_attr(req->send.ep->worker,
                                       ucp_ep_get_rsc_index(req->send.ep,
                                                            lpriv->super.lane));
-    align = attrs->cap.get.opt_zcopy_align;
+    align  = attrs->cap.get.opt_zcopy_align;
     buffer = UCS_PTR_BYTE_OFFSET(req->send.state.dt_iter.type.contig.buffer,
                                  total_offset);
     buffer_padding = ((size_t)buffer) % align;

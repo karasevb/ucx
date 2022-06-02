@@ -970,8 +970,8 @@ const std::string test_ucp_tag_match_rndv_align::rndv_schemes[] = { "get_zcopy" 
 UCS_TEST_P(test_ucp_tag_match_rndv_align, recv_align)
 {
     size_t recv_offsets[4];
-    size_t sizes[] = { UCS_SYS_PCI_MAX_PAYLOAD, 1000, 2000, 8000,
-                       ucs::limit_buffer_size(2500ul * UCS_MBYTE) };
+    size_t sizes[] = { UCS_SYS_PCI_MAX_PAYLOAD, 139 * UCS_KBYTE, 2000,
+                       8000, ucs::limit_buffer_size(2500ul * UCS_MBYTE) };
     request *ucx_req;
 
     receiver().connect(&sender(), get_ep_params());
