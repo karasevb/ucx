@@ -412,11 +412,17 @@ ucp_proto_rndv_bulk_init(const ucp_proto_multi_init_params_t *init_params,
 {
     ucs_status_t status;
     size_t mpriv_size;
+    size_t rndv_align_thresh =
+        init_params->super.super.worker->context->config.ext.rndv_align_thresh;
 
     status = ucp_proto_multi_init(init_params, &rpriv->mpriv, &mpriv_size);
     if (status != UCS_OK) {
         return status;
     }
+
+    rpriv->align_thresh =
+        ucs_max(rndv_align_thresh,
+                rpriv->mpriv.max_align + rpriv->mpriv.min_frag);
 
     /* Add ack latency */
     status = ucp_proto_rndv_ack_init(&init_params->super.super, &rpriv->super);

@@ -117,7 +117,8 @@ ucp_proto_rndv_get_zcopy_query(const ucp_proto_query_params_t *params,
 static UCS_F_ALWAYS_INLINE ucs_status_t
 ucp_proto_rndv_get_zcopy_send_func(ucp_request_t *req,
                                    const ucp_proto_multi_lane_priv_t *lpriv,
-                                   ucp_datatype_iter_t *next_iter)
+                                   ucp_datatype_iter_t *next_iter,
+                                   ucp_lane_index_t *lane_shift)
 {
     /* coverity[tainted_data_downcast] */
     const ucp_proto_rndv_bulk_priv_t *rpriv = req->send.proto_config->priv;
@@ -125,10 +126,8 @@ ucp_proto_rndv_get_zcopy_send_func(ucp_request_t *req,
     size_t max_payload;
     uct_iov_t iov;
 
-    max_payload = ucp_proto_rndv_bulk_max_payload(req, rpriv, lpriv);
-    max_payload = ucp_proto_rndv_adjust_to_alignment(req, rpriv, lpriv,
-                                                     max_payload);
-
+    max_payload = ucp_proto_rndv_bulk_max_payload_align(req, rpriv, lpriv,
+                                                        lane_shift);
     ucp_datatype_iter_next_iov(&req->send.state.dt_iter, max_payload,
                                lpriv->super.md_index,
                                UCS_BIT(UCP_DATATYPE_CONTIG), next_iter, &iov,
@@ -211,7 +210,7 @@ ucp_proto_t ucp_rndv_get_zcopy_proto = {
 
 static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_rndv_get_mtype_send_func(
         ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-        ucp_datatype_iter_t *next_iter)
+        ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift)
 {
     /* coverity[tainted_data_downcast] */
     const ucp_proto_rndv_bulk_priv_t *rpriv = req->send.proto_config->priv;

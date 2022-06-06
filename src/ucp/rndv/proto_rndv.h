@@ -11,6 +11,7 @@
 
 #include <ucp/proto/proto_multi.h>
 
+
 /**
  * Rendezvous protocol which sends a control message to the remote peer, and not
  * actually transferring bulk data. The remote peer is expected to perform the
@@ -56,12 +57,15 @@ typedef struct {
 typedef struct {
     ucp_proto_rndv_ack_priv_t super;
 
+    /* Cached value of threshold for enabling RNDV data split alignment */
+    size_t                    align_thresh;
+
     /*
      * Multi-lane common part.
      * Must be the last element in this struct, since it's variable-size and
      * ends with a zero-size array.
      */
-    ucp_proto_multi_priv_t mpriv;
+    ucp_proto_multi_priv_t    mpriv;
 } ucp_proto_rndv_bulk_priv_t;
 
 

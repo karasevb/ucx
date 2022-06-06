@@ -48,7 +48,7 @@ static size_t ucp_proto_rndv_am_bcopy_pack(void *dest, void *arg)
 
 static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_rndv_am_bcopy_send_func(
         ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-        ucp_datatype_iter_t *next_iter)
+        ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift)
 {
     static const size_t hdr_size        = sizeof(ucp_request_data_hdr_t);
     ucp_ep_t *ep                        = req->send.ep;

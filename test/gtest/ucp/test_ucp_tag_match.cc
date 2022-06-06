@@ -937,6 +937,7 @@ class test_ucp_tag_match_rndv_align : public test_ucp_tag_match_rndv {
 public:
     enum {
         RNDV_SCHEME_GET_ZCOPY,
+        RNDV_SCHEME_PUT_ZCOPY,
         RNDV_SCHEME_LAST,
     };
 
@@ -961,44 +962,48 @@ public:
 protected:
     size_t min_frag()
     {
-        return ucp_ep_config(receiver().ep())->rndv.get_zcopy.min;
+        if (rndv_scheme() == RNDV_SCHEME_GET_ZCOPY) {
+            return ucp_ep_config(receiver().ep())->rndv.get_zcopy.min;
+        } else if (rndv_scheme() == RNDV_SCHEME_PUT_ZCOPY) {
+            return ucp_ep_config(receiver().ep())->rndv.put_zcopy.min;
+        }
+        ucs_assert_always(0);
+        return 0;
     }
 };
 
-const std::string test_ucp_tag_match_rndv_align::rndv_schemes[] = { "get_zcopy" };
+const std::string test_ucp_tag_match_rndv_align::rndv_schemes[] = { "get_zcopy",
+                                                                    "put_zcopy"};
 
 UCS_TEST_P(test_ucp_tag_match_rndv_align, recv_align)
 {
     size_t recv_offsets[4];
     size_t sizes[] = { UCS_SYS_PCI_MAX_PAYLOAD, 139 * UCS_KBYTE, 2000,
                        8000, ucs::limit_buffer_size(2500ul * UCS_MBYTE) };
-    request *ucx_req;
 
     receiver().connect(&sender(), get_ep_params());
 
     recv_offsets[0] = 0;
     recv_offsets[1] = min_frag();
     recv_offsets[2] = UCS_SYS_PCI_MAX_PAYLOAD - 1;
-    recv_offsets[3] = ucs::rand() % UCS_SYS_PCI_MAX_PAYLOAD + 1;
+    recv_offsets[3] = (ucs::rand() % UCS_SYS_PCI_MAX_PAYLOAD) + 1;
 
     for (unsigned i = 0; i < ucs_static_array_size(recv_offsets); i++) {
         for (unsigned j = 0; j < ucs_static_array_size(sizes); j++) {
             const size_t recv_offset = recv_offsets[i];
-            const size_t size = sizes[j] / ucs::test_time_multiplier() /
-                                ucs::test_time_multiplier();
-            size_t offset;
+            const size_t size        = sizes[j] / ucs::test_time_multiplier() /
+                                        ucs::test_time_multiplier();
             std::vector<char> sendbuf(size, 0);
             std::vector<char> recvbuf(size + recv_offset +
                                       UCS_SYS_PCI_MAX_PAYLOAD, 0);
+            size_t offset = UCS_SYS_PCI_MAX_PAYLOAD -
+                ((size_t)&recvbuf[0] % UCS_SYS_PCI_MAX_PAYLOAD) + recv_offset;
+            request *ucx_req = recv_nb(&recvbuf[offset], size, DATATYPE, 0x1337, 0xffff);
+
+            ASSERT_TRUE(!UCS_PTR_IS_ERR(ucx_req));
+            ASSERT_NE(nullptr, ucx_req); /* Couldn't be completed because didn't send yet */
 
             ucs::fill_random(sendbuf);
-            offset = UCS_SYS_PCI_MAX_PAYLOAD -
-                ((size_t)&recvbuf[0] % UCS_SYS_PCI_MAX_PAYLOAD) + recv_offset;
-
-            ucx_req = recv_nb(&recvbuf[offset], size, DATATYPE, 0x1337, 0xffff);
-            ASSERT_TRUE(!UCS_PTR_IS_ERR(ucx_req));
-            ASSERT_TRUE(ucx_req != NULL); /* Couldn't be completed because didn't send yet */
-
             send_b(&sendbuf[0], size, DATATYPE, 0x111337);
             wait(ucx_req);
             request_free(ucx_req);
