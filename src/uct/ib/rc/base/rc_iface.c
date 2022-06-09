@@ -93,6 +93,15 @@ ucs_config_field_t uct_rc_iface_common_config_table[] = {
    "Otherwise poll TX completions only if no RX completions found.",
    ucs_offsetof(uct_rc_iface_common_config_t, tx.poll_always), UCS_CONFIG_TYPE_BOOL},
 
+  {"ECE", "0",
+   "config Enhanced Connection Establishment to establish connection.\n"
+   "  0         : Use default ECE.\n"
+   "  auto      : Use maximal supported ECE.\n"
+   "  otherwise : Set the ECE to the given numeric 32-bit value.\n"
+   "              This value is used as best-effort and can be adjusted by\n"
+   "              the transport implementation.\n",
+   ucs_offsetof(uct_rc_iface_common_config_t, ece), UCS_CONFIG_TYPE_ULUNITS},
+
   {NULL}
 };
 
@@ -427,6 +436,7 @@ static ucs_status_t uct_rc_iface_tx_ops_init(uct_rc_iface_t *iface)
     const unsigned count = iface->config.tx_cq_len;
     uct_rc_iface_send_op_t *op;
     ucs_status_t status;
+    ucs_mpool_params_t mp_params;
 
     iface->tx.ops_buffer = ucs_calloc(count, sizeof(*iface->tx.ops_buffer),
                                       "rc_tx_ops");
@@ -445,10 +455,12 @@ static ucs_status_t uct_rc_iface_tx_ops_init(uct_rc_iface_t *iface)
     /* Create memory pool for flush completions. Can't just alloc a certain
      * size buffer, because number of simultaneous flushes is not limited by
      * CQ or QP resources. */
-    status = ucs_mpool_init(&iface->tx.send_op_mp, 0, sizeof(*op), 0,
-                            UCS_SYS_CACHE_LINE_SIZE, 256,
-                            UINT_MAX, &uct_rc_send_op_mpool_ops,
-                            "send-ops-mpool");
+    ucs_mpool_params_reset(&mp_params);
+    mp_params.elem_size       = sizeof(*op);
+    mp_params.elems_per_chunk = 256;
+    mp_params.ops             = &uct_rc_send_op_mpool_ops;
+    mp_params.name            = "send-ops-mpool";
+    status = ucs_mpool_init(&mp_params, &iface->tx.send_op_mp);
 
     return status;
 }
@@ -545,18 +557,20 @@ uct_rc_iface_init_max_rd_atomic(uct_rc_iface_t *iface,
 }
 
 UCS_CLASS_INIT_FUNC(uct_rc_iface_t, uct_iface_ops_t *tl_ops,
-                    uct_rc_iface_ops_t *ops, uct_md_h md, uct_worker_h worker,
-                    const uct_iface_params_t *params,
+                    uct_rc_iface_ops_t *ops, uct_md_h tl_md,
+                    uct_worker_h worker, const uct_iface_params_t *params,
                     const uct_rc_iface_common_config_t *config,
                     const uct_ib_iface_init_attr_t *init_attr)
 {
-    uct_ib_device_t *dev = &ucs_derived_of(md, uct_ib_md_t)->dev;
+    uct_ib_md_t *md      = ucs_derived_of(tl_md, uct_ib_md_t);
+    uct_ib_device_t *dev = &md->dev;
     uint32_t max_ib_msg_size;
     ucs_status_t status;
     unsigned tx_cq_size;
+    ucs_mpool_params_t mp_params;
 
-    UCS_CLASS_CALL_SUPER_INIT(uct_ib_iface_t, tl_ops, &ops->super, md, worker,
-                              params, &config->super, init_attr);
+    UCS_CLASS_CALL_SUPER_INIT(uct_ib_iface_t, tl_ops, &ops->super, tl_md,
+                              worker, params, &config->super, init_attr);
 
     tx_cq_size                  = uct_ib_cq_size(&self->super, init_attr,
                                                  UCT_IB_DIR_TX);
@@ -583,6 +597,21 @@ UCS_CLASS_INIT_FUNC(uct_rc_iface_t, uct_iface_ops_t *tl_ops,
     self->tx.in_pending         = 0;
 #endif
     max_ib_msg_size             = uct_ib_iface_port_attr(&self->super)->max_msg_sz;
+
+    if (md->ece_enable) {
+        if (config->ece == UCS_ULUNITS_AUTO) {
+            self->config.ece = UCT_IB_DEVICE_ECE_MAX;
+        } else {
+            self->config.ece = config->ece;
+        }
+    } else if ((config->ece == UCS_ULUNITS_AUTO) || (config->ece == 0)) {
+        self->config.ece = UCT_IB_DEVICE_ECE_DEFAULT;
+    } else {
+        ucs_error("%s: cannot set ECE value to 0x%lx since the device does not "
+                  "support ECE", uct_ib_device_name(dev), config->ece);
+        status = UCS_ERR_INVALID_PARAM;
+        goto err;
+    }
 
     status = uct_rc_iface_init_max_rd_atomic(self, config, init_attr);
     if (status != UCS_OK) {
@@ -675,9 +704,13 @@ UCS_CLASS_INIT_FUNC(uct_rc_iface_t, uct_iface_ops_t *tl_ops,
 
     /* Create mempool for pending requests */
     ucs_assert(init_attr->fc_req_size >= sizeof(uct_rc_pending_req_t));
-    status = ucs_mpool_init(&self->tx.pending_mp, 0, init_attr->fc_req_size,
-                            0, 1, 128, UINT_MAX, &uct_rc_pending_mpool_ops,
-                            "pending-ops");
+    ucs_mpool_params_reset(&mp_params);
+    mp_params.elem_size       = init_attr->fc_req_size;
+    mp_params.alignment       = 1;
+    mp_params.elems_per_chunk = 128;
+    mp_params.ops             = &uct_rc_pending_mpool_ops;
+    mp_params.name            = "pending-ops";
+    status = ucs_mpool_init(&mp_params, &self->tx.pending_mp);
     if (status != UCS_OK) {
         goto err_cleanup_rx;
     }
@@ -832,11 +865,18 @@ ucs_status_t uct_rc_iface_qp_connect(uct_rc_iface_t *iface, struct ibv_qp *qp,
                                      struct ibv_ah_attr *ah_attr,
                                      enum ibv_mtu path_mtu)
 {
+    uct_ib_device_t *dev = uct_ib_iface_device(&iface->super);
     struct ibv_qp_attr qp_attr;
     long qp_attr_mask;
+    ucs_status_t status;
     int ret;
 
     ucs_assert(path_mtu != 0);
+
+    status = uct_ib_device_set_ece(dev, qp, iface->config.ece);
+    if (status != UCS_OK) {
+        return status;
+    }
 
     memset(&qp_attr, 0, sizeof(qp_attr));
 

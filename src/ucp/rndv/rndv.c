@@ -483,6 +483,7 @@ ucp_rndv_progress_rma_zcopy_common(ucp_request_t *req, ucp_lane_index_t lane,
 {
     const size_t max_iovcnt = 1;
     ucp_ep_h ep             = req->send.ep;
+    uct_ep_h uct_ep         = ucp_ep_get_lane(ep, lane);
     ucp_ep_config_t *config = ucp_ep_config(ep);
     uct_iov_t iov[max_iovcnt];
     size_t iovcnt;
@@ -551,11 +552,11 @@ ucp_rndv_progress_rma_zcopy_common(ucp_request_t *req, ucp_lane_index_t lane,
 
     for (;;) {
         if (proto == UCP_REQUEST_SEND_PROTO_RNDV_GET) {
-            status = uct_ep_get_zcopy(ep->uct_eps[lane], iov, iovcnt,
+            status = uct_ep_get_zcopy(uct_ep, iov, iovcnt,
                                       req->send.rndv.remote_address + offset,
                                       uct_rkey, &req->send.state.uct_comp);
         } else {
-            status = uct_ep_put_zcopy(ep->uct_eps[lane], iov, iovcnt,
+            status = uct_ep_put_zcopy(uct_ep, iov, iovcnt,
                                       req->send.rndv.remote_address + offset,
                                       uct_rkey, &req->send.state.uct_comp);
         }
@@ -1094,6 +1095,7 @@ ucp_rndv_mpool_get(ucp_worker_h worker, ucs_memory_type_t mem_type,
     ucs_mpool_t *mpool;
     khiter_t khiter;
     int khret;
+    ucs_mpool_params_t mp_params;
 
     key.sys_dev  = sys_dev;
     key.mem_type = mem_type;
@@ -1113,9 +1115,15 @@ ucp_rndv_mpool_get(ucp_worker_h worker, ucs_memory_type_t mem_type,
 
     mpool     = &kh_value(&worker->mpool_hash, khiter);
     num_frags = worker->context->config.ext.rndv_num_frags[key.mem_type];
-    status = ucs_mpool_init(mpool, sizeof(ucp_rndv_mpool_priv_t),
-                            sizeof(ucp_mem_desc_t), 0, 1, num_frags, UINT_MAX,
-                            &ucp_frag_mpool_ops, "ucp_rndv_frags");
+
+    ucs_mpool_params_reset(&mp_params);
+    mp_params.priv_size       = sizeof(ucp_rndv_mpool_priv_t);
+    mp_params.elem_size       = sizeof(ucp_mem_desc_t);
+    mp_params.alignment       = 1;
+    mp_params.elems_per_chunk = num_frags;
+    mp_params.ops             = &ucp_frag_mpool_ops;
+    mp_params.name            = "ucp_rndv_frags";
+    status = ucs_mpool_init(&mp_params, mpool);
     if (status != UCS_OK) {
         return NULL;
     }

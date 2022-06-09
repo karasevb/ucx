@@ -67,9 +67,12 @@ public:
 
     void init() {
         m_err_count = 0;
-        modify_config("KEEPALIVE_INTERVAL", "10s");
+        modify_config("KEEPALIVE_INTERVAL", "5s");
         modify_config("CM_USE_ALL_DEVICES", cm_use_all_devices() ? "y" : "n");
         modify_config("SA_DATA_VERSION", sa_data_version_v2() ? "v2" : "v1");
+        modify_config("RC_TIMEOUT", "100us", IGNORE_IF_NOT_EXIST);
+        modify_config("RC_RETRY_COUNT", "3", IGNORE_IF_NOT_EXIST);
+        modify_config("UD_TIMEOUT", "5s", IGNORE_IF_NOT_EXIST);
 
         get_sockaddr();
         ucp_test::init();
@@ -929,7 +932,7 @@ protected:
                 continue;
             }
 
-            uct_iface_h uct_iface = ep->uct_eps[lane]->iface;
+            uct_iface_h uct_iface = ucp_ep_get_lane(ep, lane)->iface;
             auto res              = m_sender_uct_ops.emplace(uct_iface,
                                                              uct_iface->ops);
             if (res.second) {
@@ -1490,7 +1493,7 @@ protected:
         } else {
             /* Make sure that stub WIREUP_EP is updated */
             for (auto lane = 0; lane < ucp_ep_num_lanes(e.ep()); ++lane) {
-                set_iface_failure(e.ep()->uct_eps[lane]->iface,
+                set_iface_failure(ucp_ep_get_lane(e.ep(), lane)->iface,
                                   fail_wireup_type);
             }
             for (auto iface_id = 0; iface_id < worker->num_ifaces;

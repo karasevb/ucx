@@ -13,7 +13,56 @@
 
 #include <ucs/arch/atomic.h>
 #include <ucs/datastruct/array.inl>
+#include <ctype.h>
 
+
+/* Performance node data entry */
+typedef struct {
+    const char        *name;
+    ucs_linear_func_t value;
+} ucp_proto_perf_node_data_t;
+
+/* Array of performance data entries */
+UCS_ARRAY_DEFINE_INLINE(ucp_proto_perf_node_data, unsigned,
+                        ucp_proto_perf_node_data_t);
+
+/* Array of performance node pointers - used for node children array */
+UCS_ARRAY_DEFINE_INLINE(ucp_proto_perf_node, unsigned, ucp_proto_perf_node_t*);
+
+/*
+ * Performance estimation for a range of message sizes.
+ * Defined in C file to prevent direct access to the structure fields.
+ */
+struct ucp_proto_perf_node {
+    /* Type of the range */
+    ucp_proto_perf_node_type_t       type;
+
+    /* Name of the range */
+    const char                       *name;
+
+    /* Description of the range */
+    char                             desc[UCP_PROTO_DESC_STR_MAX];
+
+    /* Number of references in the performance tree defined by 'children' */
+    unsigned                         refcount;
+
+    /* Child nodes */
+    ucs_array_t(ucp_proto_perf_node) children;
+
+    union {
+        /*
+         * Index of selected child node in the 'children' array.
+         * Used when type == UCP_PROTO_PERF_NODE_TYPE_SELECT
+         */
+        unsigned                              selected_child;
+
+        /*
+         * Data entries
+         * Used when type == UCP_PROTO_PERF_NODE_TYPE_DATA
+         */
+        ucs_array_t(ucp_proto_perf_node_data) data;
+    };
+};
 
 /* Protocol information table */
 typedef struct {
@@ -152,7 +201,6 @@ ucp_proto_select_elem_info(ucp_worker_h worker,
     ucp_proto_query_attr_t proto_attr;
     ucp_proto_info_row_t *row_elem;
     size_t range_start, range_end;
-    ucs_status_t status;
     int proto_valid;
 
     ucp_proto_select_param_dump(worker, ep_cfg_index, rkey_cfg_index,
@@ -175,12 +223,8 @@ ucp_proto_select_elem_info(ucp_worker_h worker,
             continue;
         }
 
-        status = ucs_array_append(ucp_proto_info_table, &table);
-        if (status != UCS_OK) {
-            break;
-        }
+        row_elem = ucs_array_append(ucp_proto_info_table, &table, break);
 
-        row_elem = ucs_array_last(&table);
         ucs_snprintf_safe(row_elem->desc, sizeof(row_elem->desc), "%s%s",
                           proto_attr.is_estimation ? "(?) " : "",
                           proto_attr.desc);
@@ -318,7 +362,7 @@ void ucp_proto_config_info_str(ucp_worker_h worker,
 {
     const ucp_proto_select_elem_t *select_elem;
     ucp_worker_cfg_index_t new_key_cfg_index;
-    const ucp_proto_select_range_t *range;
+    const ucp_proto_perf_range_t *range;
     ucp_proto_query_attr_t proto_attr;
     ucp_proto_select_t *proto_select;
     double bandwidth;
@@ -356,7 +400,7 @@ void ucp_proto_config_info_str(ucp_worker_h worker,
     /* Find the relevant performance range */
     range     = ucp_proto_perf_range_search(select_elem, msg_length);
     bandwidth = ucp_proto_select_calc_bandwidth(&proto_config->select_param,
-                                                &range->super, msg_length);
+                                                range, msg_length);
     ucs_string_buffer_appendf(strb, " %.1f MB/s %.2f us", bandwidth / UCS_MBYTE,
                               msg_length / bandwidth * UCS_USEC_PER_SEC);
 }
@@ -382,6 +426,450 @@ void ucp_proto_select_info_str(ucp_worker_h worker,
     ucp_rkey_config_dump_brief(&worker->rkey_config[rkey_cfg_index].key, strb);
 }
 
+ucp_proto_perf_node_t *ucp_proto_perf_node_new(ucp_proto_perf_node_type_t type,
+                                               const char *name,
+                                               const char *desc_fmt, va_list ap)
+{
+    ucp_proto_perf_node_t *perf_node;
+
+    perf_node = ucs_malloc(sizeof(*perf_node), "ucp_proto_perf_node");
+    if (perf_node == NULL) {
+        return NULL;
+    }
+
+    perf_node->type     = type;
+    perf_node->name     = name;
+    perf_node->refcount = 1;
+    ucs_array_init_dynamic(&perf_node->children);
+    ucs_vsnprintf_safe(perf_node->desc, sizeof(perf_node->desc), desc_fmt, ap);
+
+    return perf_node;
+}
+
+static void ucp_proto_perf_node_free(ucp_proto_perf_node_t *perf_node)
+{
+    ucp_proto_perf_node_t **child_elem;
+
+    /* Delete children recursively */
+    ucs_array_for_each(child_elem, &perf_node->children) {
+        ucp_proto_perf_node_deref(child_elem);
+    }
+    ucs_array_cleanup_dynamic(&perf_node->children);
+
+    if (perf_node->type == UCP_PROTO_PERF_NODE_TYPE_DATA) {
+        ucs_array_cleanup_dynamic(&perf_node->data);
+    }
+
+    ucs_free(perf_node);
+}
+
+#define UCP_PROTO_PERF_NODE_NEW(_type, _name, _desc_fmt) \
+    ({ \
+        ucp_proto_perf_node_t *__perf_node; \
+        va_list __ap; \
+        \
+        va_start(__ap, _desc_fmt); \
+        __perf_node = ucp_proto_perf_node_new( \
+                UCP_PROTO_PERF_NODE_TYPE_##_type, _name, _desc_fmt, __ap); \
+        va_end(__ap); \
+        \
+        if (__perf_node == NULL) { \
+            return NULL; \
+        } \
+        \
+        __perf_node; \
+    })
+
+ucp_proto_perf_node_t *
+ucp_proto_perf_node_new_data(const char *name, const char *desc_fmt, ...)
+{
+    ucp_proto_perf_node_t *perf_node;
+
+    perf_node = UCP_PROTO_PERF_NODE_NEW(DATA, name, desc_fmt);
+    ucs_array_init_dynamic(&perf_node->data);
+    return perf_node;
+}
+
+ucp_proto_perf_node_t *ucp_proto_perf_node_new_select(const char *name,
+                                                      unsigned selected_child,
+                                                      const char *desc_fmt, ...)
+{
+    ucp_proto_perf_node_t *perf_node;
+
+    perf_node                 = UCP_PROTO_PERF_NODE_NEW(SELECT, name, desc_fmt);
+    perf_node->selected_child = selected_child;
+    return perf_node;
+}
+
+ucp_proto_perf_node_t *
+ucp_proto_perf_node_new_compose(const char *name, const char *desc_fmt, ...)
+{
+    return UCP_PROTO_PERF_NODE_NEW(COMPOSE, name, desc_fmt);
+}
+
+void ucp_proto_perf_node_ref(ucp_proto_perf_node_t *perf_node)
+{
+    if (perf_node != NULL) {
+        ucs_assert(perf_node->refcount != UINT_MAX);
+        ++perf_node->refcount;
+    }
+}
+
+void ucp_proto_perf_node_deref(ucp_proto_perf_node_t **perf_node_p)
+{
+    ucp_proto_perf_node_t *perf_node = *perf_node_p;
+
+    if (perf_node == NULL) {
+        return;
+    }
+
+    ucs_assertv(perf_node->refcount > 0, "perf_node=%p name='%s' desc='%s'",
+                perf_node, perf_node->name, perf_node->desc);
+    --perf_node->refcount;
+    if (perf_node->refcount == 0) {
+        ucp_proto_perf_node_free(perf_node);
+        *perf_node_p = NULL;
+    }
+}
+
+static void
+ucp_proto_perf_node_append_child(ucp_proto_perf_node_t *perf_node,
+                                 ucp_proto_perf_node_t *child_perf_node)
+{
+    ucs_array_append(ucp_proto_perf_node, &perf_node->children,
+                     ucs_diag("failed to add perf node child");
+                     return );
+    *ucs_array_last(&perf_node->children) = child_perf_node;
+}
+
+void ucp_proto_perf_node_own_child(ucp_proto_perf_node_t *perf_node,
+                                   ucp_proto_perf_node_t **child_perf_node_p)
+{
+    if (*child_perf_node_p == NULL) {
+        return;
+    } else if (perf_node == NULL) {
+        ucp_proto_perf_node_deref(child_perf_node_p);
+        return;
+    }
+
+    ucp_proto_perf_node_append_child(perf_node, *child_perf_node_p);
+}
+
+void ucp_proto_perf_node_add_child(ucp_proto_perf_node_t *perf_node,
+                                   ucp_proto_perf_node_t *child_perf_node)
+{
+    if ((perf_node == NULL) || (child_perf_node == NULL)) {
+        return;
+    }
+
+    ucp_proto_perf_node_append_child(perf_node, child_perf_node);
+    ucp_proto_perf_node_ref(child_perf_node);
+}
+
+void ucp_proto_perf_node_add_data(ucp_proto_perf_node_t *perf_node,
+                                  const char *name,
+                                  const ucs_linear_func_t value)
+{
+    ucp_proto_perf_node_data_t *data;
+
+    if (perf_node == NULL) {
+        return;
+    }
+
+    ucs_assert(perf_node->type == UCP_PROTO_PERF_NODE_TYPE_DATA);
+
+    ucs_array_append(ucp_proto_perf_node_data, &perf_node->data,
+                     ucs_diag("failed to add perf node data");
+                     return );
+    data        = ucs_array_last(&perf_node->data);
+    data->name  = name;
+    data->value = value;
+}
+
+void ucp_proto_perf_node_add_scalar(ucp_proto_perf_node_t *perf_node,
+                                    const char *name, double value)
+{
+    ucp_proto_perf_node_add_data(perf_node, name,
+                                 ucs_linear_func_make(value, 0));
+}
+
+void ucp_proto_perf_node_add_bandwidth(ucp_proto_perf_node_t *perf_node,
+                                       const char *name, double value)
+{
+    ucp_proto_perf_node_add_data(perf_node, name,
+                                 ucs_linear_func_make(0, 1.0 / value));
+}
+
+const char *ucp_proto_perf_node_name(ucp_proto_perf_node_t *perf_node)
+{
+    return (perf_node == NULL) ? "(null)" : perf_node->name;
+}
+
+const char *ucp_proto_perf_node_desc(ucp_proto_perf_node_t *perf_node)
+{
+    return (perf_node == NULL) ? "(null)" : perf_node->desc;
+}
+
+static void
+ucp_proto_perf_graph_str_append_line_break(ucs_string_buffer_t *strb)
+{
+    ucs_string_buffer_appendf(strb, "<br align=\"left\"/>");
+}
+
+static void
+ucp_proto_perf_graph_str_append_perf(const ucp_proto_perf_node_data_t *data,
+                                     ucs_string_buffer_t *strb)
+{
+    double mbps;
+
+    if (data->name[0] != '\0') {
+        /* Show only non-empty name */
+        ucs_string_buffer_appendf(strb, "%s ", data->name);
+    }
+
+    if (data->value.m > UCP_PROTO_PERF_EPSILON) {
+        mbps = 1.0 / (data->value.m * UCS_MBYTE);
+        if (mbps < 1e4) {
+            ucs_string_buffer_appendf(strb, "%.0fMBs", mbps);
+        } else {
+            ucs_string_buffer_appendf(strb, "%.1fGBs", mbps / 1024);
+        }
+        if (data->value.c > UCP_PROTO_PERF_EPSILON) {
+            ucs_string_buffer_appendf(strb, "+");
+        }
+    }
+
+    if (data->value.c > UCP_PROTO_PERF_EPSILON) {
+        ucs_string_buffer_appendf(strb, "%0.2f&mu;s",
+                                  data->value.c * UCS_USEC_PER_SEC);
+    }
+}
+
+static void ucp_proto_perf_graph_str_append_link(int parent_id, int child_id,
+                                                 int highlight,
+                                                 ucs_string_buffer_t *strb)
+{
+    ucs_string_buffer_appendf(strb, "\tnode%d -> node%d", parent_id, child_id);
+    if (highlight > 0) {
+        ucs_string_buffer_appendf(strb, " [style=bold]");
+    } else if (highlight < 0) {
+        ucs_string_buffer_appendf(strb, " [style=dotted]");
+    }
+    ucs_string_buffer_appendf(strb, ";\n");
+}
+
+static inline khint32_t kh_ptr_hash_func(void *ptr)
+{
+    return kh_int64_hash_func((uintptr_t)ptr);
+}
+
+KHASH_INIT(ucp_proto_graph_node, ucp_proto_perf_node_t*, int, 1,
+           kh_ptr_hash_func, kh_int64_hash_equal);
+
+static void
+ucp_proto_perf_graph_dump_recurs(ucp_proto_perf_node_t *perf_node,
+                                 int parent_id,
+                                 khash_t(ucp_proto_graph_node) *nodes_hash,
+                                 int highlight, ucs_string_buffer_t *strb)
+{
+    UCS_STRING_BUFFER_ONSTACK(node_style, 64);
+    ucp_proto_perf_node_t **child_elem;
+    ucp_proto_perf_node_data_t *data;
+    int khret, id, child_index;
+    int child_highlight;
+    const char *shape;
+    khiter_t khiter;
+
+    if (perf_node == NULL) {
+        return;
+    }
+
+    khiter = kh_put(ucp_proto_graph_node, nodes_hash, perf_node, &khret);
+    if (khret == UCS_KH_PUT_KEY_PRESENT) {
+        id = kh_value(nodes_hash, khiter);
+        ucp_proto_perf_graph_str_append_link(parent_id, id, highlight, strb);
+        return;
+    } else if (khret == UCS_KH_PUT_FAILED) {
+        ucs_debug("failed to add node %p to performance tree hash", perf_node);
+        return;
+    }
+
+    id = kh_size(nodes_hash); /* We never remove from the hash */
+    kh_value(nodes_hash, khiter) = id;
+
+    /* Connect to parent */
+    ucp_proto_perf_graph_str_append_link(parent_id, id, highlight, strb);
+
+    /* Header */
+    switch (perf_node->type) {
+    default:
+    case UCP_PROTO_PERF_NODE_TYPE_DATA:
+        shape = "note";
+        break;
+    case UCP_PROTO_PERF_NODE_TYPE_SELECT:
+        shape = "oval";
+        break;
+    case UCP_PROTO_PERF_NODE_TYPE_COMPOSE:
+        shape = "box";
+        ucs_string_buffer_appendf(&node_style, "rounded,");
+        break;
+    }
+
+    /* Open node */
+    ucs_string_buffer_appendf(strb, "\tnode%d [shape=%s ", id, shape);
+    if (highlight > 0) {
+        ucs_string_buffer_appendf(&node_style, "filled,");
+        ucs_string_buffer_appendf(strb, "fillcolor=\"#FFE0E0\" ");
+    }
+
+    /* Style */
+    ucs_string_buffer_rtrim(&node_style, ",");
+    ucs_string_buffer_appendf(strb, "style=\"%s\" ",
+                              ucs_string_buffer_cstr(&node_style));
+
+    /* Start node label */
+    ucs_string_buffer_appendf(strb, "label=<<b>");
+    ucs_string_buffer_appendf(strb, "%s</b><br align=\"center\"/>",
+                              perf_node->name);
+
+    /* Description */
+    if (!ucs_string_is_empty(perf_node->desc)) {
+        ucs_string_buffer_appendf(
+                strb, "<font face=\"calibri\" point-size=\"11\">%s<br/></font>",
+                perf_node->desc);
+    }
+
+    /* Data entries */
+    if ((perf_node->type == UCP_PROTO_PERF_NODE_TYPE_DATA) &&
+        !ucs_array_is_empty(&perf_node->data)) {
+        ucs_string_buffer_appendf(strb,
+                                  "<font face=\"calibri\" point-size=\"13\">");
+        ucs_array_for_each(data, &perf_node->data) {
+            if (ucs_linear_func_is_zero(data->value, UCP_PROTO_PERF_EPSILON)) {
+                continue;
+            }
+
+            ucp_proto_perf_graph_str_append_line_break(strb);
+            ucp_proto_perf_graph_str_append_perf(data, strb);
+        }
+
+        ucp_proto_perf_graph_str_append_line_break(strb);
+        ucs_string_buffer_appendf(strb, "</font>");
+    }
+
+    /* Terminate label and node */
+    ucs_string_buffer_appendf(strb, ">];\n");
+
+    child_index = 0;
+    ucs_array_for_each(child_elem, &perf_node->children) {
+        if ((perf_node->type == UCP_PROTO_PERF_NODE_TYPE_SELECT) &&
+            (child_index != perf_node->selected_child)) {
+            /* This child is not selected */
+            child_highlight = -1;
+        } else {
+            child_highlight = ucs_max(highlight, 0);
+        }
+        ucp_proto_perf_graph_dump_recurs(*child_elem, id, nodes_hash,
+                                         child_highlight, strb);
+        ++child_index;
+    }
+}
+
+static void ucp_proto_perf_graph_dump(const ucp_proto_perf_range_t *range,
+                                      const char *proto_desc_str,
+                                      const char *proto_config_str,
+                                      ucs_string_buffer_t *strb)
+{
+    khash_t(ucp_proto_graph_node) nodes_hash = KHASH_STATIC_INITIALIZER;
+
+    ucs_string_buffer_appendf(strb, "digraph {\n");
+    ucs_string_buffer_appendf(
+            strb, "\tnode0 [label=\"%s\\n%s\" shape=box style=rounded]\n",
+            proto_desc_str, proto_config_str);
+    ucp_proto_perf_graph_dump_recurs(range->node, 0, &nodes_hash, 1, strb);
+    ucs_string_buffer_appendf(strb, "}\n");
+
+    kh_destroy_inplace(ucp_proto_graph_node, &nodes_hash);
+}
+
+static char ucp_proto_debug_fix_filename(char ch)
+{
+    if ((ch == ']') || (ch == ')') || (ch == '}')) {
+        return '\0';
+    } else if (isalnum(ch) || (ch == '_')) {
+        return ch;
+    } else {
+        return '_';
+    }
+}
+
+static void
+ucp_proto_select_write_info(ucp_worker_h worker,
+                            ucp_worker_cfg_index_t ep_cfg_index,
+                            ucp_worker_cfg_index_t rkey_cfg_index,
+                            const ucp_proto_select_param_t *select_param,
+                            const ucp_proto_select_elem_t *select_elem)
+{
+    UCS_STRING_BUFFER_ONSTACK(ep_cfg_strb, UCP_PROTO_CONFIG_STR_MAX);
+    UCS_STRING_BUFFER_ONSTACK(sel_param_strb, UCP_PROTO_CONFIG_STR_MAX);
+    char range_start_str[64], range_end_str[64];
+    const ucp_proto_perf_range_t *range;
+    ucp_proto_query_attr_t proto_attr;
+    size_t range_start, range_end;
+    ucs_string_buffer_t dot_strb;
+    char dir_path[PATH_MAX];
+    FILE *fp;
+    int ret;
+
+    ucs_fill_filename_template(worker->context->config.ext.proto_info_dir,
+                               dir_path, sizeof(dir_path));
+    ret = mkdir(dir_path, S_IRWXU | S_IRGRP | S_IXGRP);
+    if ((ret != 0) && (errno != EEXIST)) {
+        ucs_debug("failed to create directory %s: %m", dir_path);
+        return;
+    }
+
+    ucp_proto_select_param_dump(worker, ep_cfg_index, rkey_cfg_index,
+                                select_param, ucp_operation_names, &ep_cfg_strb,
+                                &sel_param_strb);
+    ucs_string_buffer_translate(&ep_cfg_strb, ucp_proto_debug_fix_filename);
+    ucs_string_buffer_translate(&sel_param_strb, ucp_proto_debug_fix_filename);
+
+    range_end = -1;
+    do {
+        range_start = range_end + 1;
+
+        range     = ucp_proto_perf_range_search(select_elem, range_start);
+        range_end = range->max_length;
+
+        if (!ucp_proto_select_elem_query(worker, select_elem, range_start,
+                                         &proto_attr)) {
+            continue;
+        }
+
+        ucs_memunits_to_str(range_start, range_start_str,
+                            sizeof(range_start_str));
+        ucs_memunits_to_str(range_end, range_end_str, sizeof(range_end_str));
+
+        fp = ucs_open_file("w", UCS_LOG_LEVEL_DIAG, "%s/%s_%s_%s_%s.dot",
+                           dir_path, ucs_string_buffer_cstr(&ep_cfg_strb),
+                           ucs_string_buffer_cstr(&sel_param_strb),
+                           range_start_str, range_end_str);
+        if (fp == NULL) {
+            continue;
+        }
+
+        ucs_string_buffer_init(&dot_strb);
+        ucp_proto_perf_graph_dump(range, proto_attr.desc, proto_attr.config,
+                                  &dot_strb);
+        ucs_string_buffer_dump(&dot_strb, "", fp);
+        ucs_string_buffer_cleanup(&dot_strb);
+
+        fclose(fp);
+
+    } while (range_end != SIZE_MAX);
+}
+
 void ucp_proto_select_elem_trace(ucp_worker_h worker,
                                  ucp_worker_cfg_index_t ep_cfg_index,
                                  ucp_worker_cfg_index_t rkey_cfg_index,
@@ -391,17 +879,24 @@ void ucp_proto_select_elem_trace(ucp_worker_h worker,
     ucs_string_buffer_t strb;
     char *line;
 
-    if (!worker->context->config.ext.proto_info ||
-        (select_param->op_flags & UCP_PROTO_SELECT_OP_FLAG_INTERNAL)) {
+    if (select_param->op_flags & UCP_PROTO_SELECT_OP_FLAG_INTERNAL) {
         return;
     }
 
     /* Print human-readable protocol selection table to the log */
-    ucs_string_buffer_init(&strb);
-    ucp_proto_select_elem_info(worker, ep_cfg_index, rkey_cfg_index,
-                               select_param, select_elem, &strb);
-    ucs_string_buffer_for_each_token(line, &strb, "\n") {
-        ucs_log_print_compact(line);
+    if (worker->context->config.ext.proto_info) {
+        ucs_string_buffer_init(&strb);
+        ucp_proto_select_elem_info(worker, ep_cfg_index, rkey_cfg_index,
+                                   select_param, select_elem, &strb);
+        ucs_string_buffer_for_each_token(line, &strb, "\n") {
+            ucs_log_print_compact(line);
+        }
+        ucs_string_buffer_cleanup(&strb);
     }
-    ucs_string_buffer_cleanup(&strb);
+
+    /* Print detailed protocol selection data to a user-configured path */
+    if (!ucs_string_is_empty(worker->context->config.ext.proto_info_dir)) {
+        ucp_proto_select_write_info(worker, ep_cfg_index, rkey_cfg_index,
+                                    select_param, select_elem);
+    }
 }

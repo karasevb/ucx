@@ -227,6 +227,20 @@ ucs_open_output_stream(const char *config_str, ucs_log_level_t err_log_level,
  * Read file contents into a string. If the size of the data is smaller than the
  * supplied upper limit (max), a null terminator is appended to the data.
  *
+ * @param mode            File open mode (same as for fopen (3)).
+ * @param err_log_level   Logging level that should be used for printing errors.
+ * @param filename_fmt    File name printf-like format string.
+ *
+ * @return Handle to the open file, or NULL if failed.
+ */
+FILE *ucs_open_file(const char *mode, ucs_log_level_t err_log_level,
+                    const char *filename_fmt, ...) UCS_F_PRINTF(3, 4);
+
+
+/**
+ * Read file contents into a string. If the size of the data is smaller than the
+ * supplied upper limit (max), a null terminator is appended to the data.
+ *
  * @param buffer        Buffer to fill with file contents.
  * @param max           Maximal buffer size.
  * @param filename_fmt  File name printf-like format string.
@@ -629,11 +643,15 @@ unsigned long ucs_sys_get_proc_create_time(pid_t pid);
 
 
 /*
- * Get the current max locked memory limit.
+ * Get effective max locked memory limit (unlimited for privileged user).
+ * In case we can't query the system for capabilities, we fallback to
+ * @ref ucs_sys_get_memlock_rlimit
  *
  * @param [out] rlimit_value If successful, set to the current limit value.
+ *
+ * @return UCS_OK if successful, or error status if failed.
  */
-ucs_status_t ucs_sys_get_memlock_rlimit(size_t *rlimit_value);
+ucs_status_t ucs_sys_get_effective_memlock_rlimit(size_t *rlimit_value);
 
 
 /*

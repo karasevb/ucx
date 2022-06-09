@@ -578,18 +578,13 @@ err:
 
 void uct_rc_mlx5_destroy_srq(uct_ib_mlx5_md_t *md, uct_ib_mlx5_srq_t *srq)
 {
-    int UCS_V_UNUSED ret;
-
     switch (srq->type) {
     case UCT_IB_MLX5_OBJ_TYPE_VERBS:
         uct_ib_destroy_srq(srq->verbs.srq);
         break;
     case UCT_IB_MLX5_OBJ_TYPE_DEVX:
 #if HAVE_DEVX
-        ret = mlx5dv_devx_obj_destroy(srq->devx.obj);
-        if (ret) {
-            ucs_warn("mlx5dv_devx_obj_destroy(SRQ) failed: %m");
-        }
+        uct_ib_mlx5_devx_obj_destroy(srq->devx.obj, "SRQ");
         uct_rc_mlx5_devx_cleanup_srq(md, srq);
 #endif
         break;
@@ -718,6 +713,7 @@ uct_rc_mlx5_iface_common_dm_tl_init(uct_mlx5_dm_data_t *data,
     struct mlx5dv_dm dvdm = {};
     uct_ib_mlx5dv_t obj = {};
     ucs_status_t status;
+    ucs_mpool_params_t mp_params;
 
     data->seg_len      = ucs_min(ucs_align_up(config->dm.seg_len,
                                               sizeof(uct_rc_mlx5_dm_copy_data_t)),
@@ -755,10 +751,13 @@ uct_rc_mlx5_iface_common_dm_tl_init(uct_mlx5_dm_data_t *data,
     uct_ib_mlx5dv_init_obj(&obj, MLX5DV_OBJ_DM);
     data->start_va = dvdm.buf;
 
-    status = ucs_mpool_init(&data->mp, 0,
-                            sizeof(uct_rc_iface_send_desc_t), 0, UCS_SYS_CACHE_LINE_SIZE,
-                            data->seg_count, data->seg_count,
-                            &uct_dm_iface_mpool_ops, "mlx5_dm_desc");
+    ucs_mpool_params_reset(&mp_params);
+    mp_params.elem_size       = sizeof(uct_rc_iface_send_desc_t);
+    mp_params.elems_per_chunk = data->seg_count;
+    mp_params.max_elems       = data->seg_count;
+    mp_params.ops             = &uct_dm_iface_mpool_ops;
+    mp_params.name            = "mlx5_dm_desc";
+    status = ucs_mpool_init(&mp_params, &data->mp);
     if (status != UCS_OK) {
         goto failed_mpool;
     }

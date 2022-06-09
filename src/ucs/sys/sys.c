@@ -392,6 +392,27 @@ ucs_open_output_stream(const char *config_str, ucs_log_level_t err_log_level,
     return UCS_OK;
 }
 
+FILE *ucs_open_file(const char *mode, ucs_log_level_t err_log_level,
+                    const char *filename_fmt, ...)
+{
+    char filename[MAXPATHLEN];
+    va_list ap;
+    FILE *fp;
+
+    va_start(ap, filename_fmt);
+    ucs_vsnprintf_safe(filename, MAXPATHLEN, filename_fmt, ap);
+    va_end(ap);
+
+    fp = fopen(filename, mode);
+    if (fp == NULL) {
+        ucs_log(err_log_level, "failed to open '%s' mode '%s': %m", filename,
+                mode);
+        return NULL;
+    }
+
+    return fp;
+}
+
 static ssize_t ucs_read_file_vararg(char *buffer, size_t max, int silent,
                                     const char *filename_fmt, va_list ap)
 {
@@ -767,7 +788,13 @@ ucs_status_t ucs_sys_get_proc_cap(uint32_t *effective)
 #endif
 }
 
-static void ucs_sysv_shmget_error_check_EPERM(int flags, char *buf, size_t max)
+/**
+ * Checks whether the process has memory lock capability.
+ *
+ * @return A boolean that indicates whether the
+ *         process has the required capability.
+ */
+static int ucs_sys_get_mlock_cap()
 {
 #if HAVE_SYS_CAPABILITY_H
     ucs_status_t status;
@@ -775,15 +802,20 @@ static void ucs_sysv_shmget_error_check_EPERM(int flags, char *buf, size_t max)
 
     UCS_STATIC_ASSERT(CAP_IPC_LOCK < 32);
     status = ucs_sys_get_proc_cap(&ecap);
-    if ((status == UCS_OK) && !(ecap & UCS_BIT(CAP_IPC_LOCK))) {
-        /* detected missing CAP_IPC_LOCK */
-        snprintf(buf, max, ", CAP_IPC_LOCK privilege is needed for SHM_HUGETLB");
-        return;
-    }
+    return (status == UCS_OK) && (ecap & UCS_BIT(CAP_IPC_LOCK));
+#else
+    return 0;
 #endif
+}
 
-    snprintf(buf, max,
-             ", please check for CAP_IPC_LOCK privilege for using SHM_HUGETLB");
+static void ucs_sysv_shmget_error_check_EPERM(int flags, char *buf, size_t max)
+{
+    if (!ucs_sys_get_mlock_cap()) {
+        /* detected missing CAP_IPC_LOCK */
+        snprintf(buf, max,
+                 ", please check for CAP_IPC_LOCK privilege for using "
+                 "SHM_HUGETLB");
+    }
 }
 
 static void ucs_sysv_shmget_format_error(size_t alloc_size, int flags,
@@ -1549,10 +1581,16 @@ err:
     return 0ul;
 }
 
-ucs_status_t ucs_sys_get_memlock_rlimit(size_t *rlimit_value)
+ucs_status_t ucs_sys_get_effective_memlock_rlimit(size_t *rlimit_value)
 {
     struct rlimit limit_info;
     int res;
+
+    /* Privileged users have no lock limit */
+    if (ucs_sys_get_mlock_cap()) {
+        *rlimit_value = SIZE_MAX;
+        return UCS_OK;
+    }
 
     /* Check the value of the max locked memory which is set on the system
      * (ulimit -l) */

@@ -7,7 +7,6 @@
 #include "uct_test.h"
 #include "uct/api/uct_def.h"
 
-#include <ucs/stats/stats.h>
 #include <ucs/sys/sock.h>
 #include <ucs/sys/string.h>
 #include <common/test_helpers.h>
@@ -631,23 +630,6 @@ bool uct_test::has_gpu() const {
             has_transport("rocm_copy"));
 }
 
-void uct_test::stats_activate()
-{
-    ucs_stats_cleanup();
-    push_config();
-    modify_config("STATS_DEST",    "file:/dev/null");
-    modify_config("STATS_TRIGGER", "exit");
-    ucs_stats_init();
-    ASSERT_TRUE(ucs_stats_is_active());
-}
-
-void uct_test::stats_restore()
-{
-    ucs_stats_cleanup();
-    pop_config();
-    ucs_stats_init();
-}
-
 uct_test::entity *
 uct_test::create_entity(size_t rx_headroom, uct_error_handler_t err_handler,
                         uct_tag_unexp_eager_cb_t eager_cb,
@@ -1097,6 +1079,12 @@ const uct_cm_attr_t& uct_test::entity::cm_attr() const {
 
 uct_listener_h uct_test::entity::listener() const {
     return m_listener;
+}
+
+uct_listener_h uct_test::entity::revoke_listener() const {
+    uct_listener_h uct_listener = listener();
+    m_listener.revoke();
+    return uct_listener;
 }
 
 uct_iface_h uct_test::entity::iface() const {

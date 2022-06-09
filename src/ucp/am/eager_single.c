@@ -63,7 +63,8 @@ ucp_am_eager_short_proto_progress_common(uct_pending_req_t *self, int is_reply)
         am_id = UCP_AM_ID_AM_SINGLE;
     }
 
-    status = uct_ep_am_short_iov(req->send.ep->uct_eps[spriv->super.lane],
+    status = uct_ep_am_short_iov(ucp_ep_get_lane(req->send.ep,
+                                                 spriv->super.lane),
                                  am_id, iov, iov_cnt);
     if (ucs_unlikely(status == UCS_ERR_NO_RESOURCE)) {
         req->send.lane = spriv->super.lane; /* for pending add */
@@ -98,7 +99,8 @@ ucp_am_eager_short_proto_init_common(const ucp_proto_init_params_t *init_params,
         .super.hdr_size      = sizeof(ucp_am_hdr_t),
         .super.send_op       = UCT_EP_OP_AM_SHORT,
         .super.memtype_op    = UCT_EP_OP_LAST,
-        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SINGLE_FRAG,
+        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SINGLE_FRAG |
+                               UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
         .lane_type           = UCP_LANE_TYPE_AM,
         .tl_cap_flags        = UCT_IFACE_FLAG_AM_SHORT
     };
@@ -174,9 +176,9 @@ ucp_am_eager_single_bcopy_pack_common(void *dest, void *arg, int is_reply)
 
     ucp_am_fill_header(hdr, req);
 
-    length = ucp_am_eager_bcopy_pack_data(hdr + 1, req,
-                                          ucp_am_send_req_total_size(req),
-                                          &next_iter);
+    length = ucp_am_eager_bcopy_pack(hdr + 1, req,
+                                     req->send.state.dt_iter.length,
+                                     &next_iter);
 
     ucs_assertv(length == ucp_am_send_req_total_size(req),
                 "length %zu total_size %zu", length,
@@ -228,7 +230,8 @@ static ucs_status_t ucp_am_eager_single_bcopy_proto_init_common(
         .super.hdr_size      = sizeof(ucp_am_hdr_t),
         .super.send_op       = UCT_EP_OP_AM_BCOPY,
         .super.memtype_op    = UCT_EP_OP_GET_SHORT,
-        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SINGLE_FRAG,
+        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SINGLE_FRAG |
+                               UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
         .lane_type           = UCP_LANE_TYPE_AM,
         .tl_cap_flags        = UCT_IFACE_FLAG_AM_BCOPY
     };
@@ -312,7 +315,8 @@ static ucs_status_t ucp_am_eager_single_zcopy_proto_init_common(
         .super.send_op       = UCT_EP_OP_AM_ZCOPY,
         .super.memtype_op    = UCT_EP_OP_LAST,
         .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY |
-                               UCP_PROTO_COMMON_INIT_FLAG_SINGLE_FRAG,
+                               UCP_PROTO_COMMON_INIT_FLAG_SINGLE_FRAG |
+                               UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
         .lane_type           = UCP_LANE_TYPE_AM,
         .tl_cap_flags        = UCT_IFACE_FLAG_AM_ZCOPY
     };
@@ -346,7 +350,7 @@ ucp_am_eager_single_zcopy_send_func(ucp_request_t *req,
     ucp_am_eager_zcopy_add_footer(req, 0, spriv->super.md_index, iov, &iovcnt,
                                   req->send.msg_proto.am.header_length);
 
-    return uct_ep_am_zcopy(req->send.ep->uct_eps[spriv->super.lane],
+    return uct_ep_am_zcopy(ucp_ep_get_lane(req->send.ep, spriv->super.lane),
                            UCP_AM_ID_AM_SINGLE, &hdr, sizeof(hdr), iov, iovcnt,
                            0, &req->send.state.uct_comp);
 }
@@ -384,7 +388,7 @@ ucp_proto_t ucp_am_eager_single_zcopy_proto = {
     .init     = ucp_am_eager_single_zcopy_proto_init,
     .query    = ucp_proto_single_query,
     .progress = {ucp_am_eager_single_zcopy_proto_progress},
-    .abort    = ucp_proto_request_bcopy_abort
+    .abort    = ucp_proto_request_zcopy_abort
 };
 
 static ucs_status_t ucp_am_eager_single_zcopy_reply_proto_init(
@@ -414,7 +418,7 @@ ucp_am_eager_single_zcopy_reply_send_func(ucp_request_t *req,
                                   req->send.msg_proto.am.header_length +
                                           sizeof(*ftr));
 
-    return uct_ep_am_zcopy(req->send.ep->uct_eps[spriv->super.lane],
+    return uct_ep_am_zcopy(ucp_ep_get_lane(req->send.ep, spriv->super.lane),
                            UCP_AM_ID_AM_SINGLE_REPLY, &hdr, sizeof(hdr), iov,
                            iovcnt, 0, &req->send.state.uct_comp);
 }

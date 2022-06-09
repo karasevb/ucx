@@ -341,11 +341,12 @@ ucs_status_t uct_rc_mlx5_iface_create_qp(uct_rc_mlx5_iface_common_t *iface,
         return UCS_OK;
     }
 
-    status = uct_ib_mlx5_iface_fill_attr(ib_iface, qp, attr);
+    status = uct_ib_mlx5_iface_get_res_domain(ib_iface, qp);
     if (status != UCS_OK) {
         return status;
     }
 
+    uct_ib_mlx5_iface_fill_attr(ib_iface, qp, attr);
     uct_ib_iface_fill_attr(ib_iface, &attr->super);
     uct_rc_mlx5_common_fill_dv_qp_attr(iface, &attr->super.ibv, &dv_attr,
                                        UCS_BIT(UCT_IB_DIR_TX) |
@@ -387,6 +388,11 @@ ucs_status_t uct_rc_mlx5_iface_create_qp(uct_rc_mlx5_iface_common_t *iface,
 err_destory_qp:
     uct_ib_mlx5_destroy_qp(md, qp);
 err:
+#if HAVE_DECL_MLX5DV_CREATE_QP
+    if (!(md->flags & UCT_IB_MLX5_MD_FLAG_DEVX_RC_QP)) {
+        uct_ib_mlx5_iface_put_res_domain(qp);
+    }
+#endif
     return status;
 }
 
@@ -857,7 +863,7 @@ UCS_CLASS_INIT_FUNC(uct_rc_mlx5_iface_t,
 {
     uct_rc_mlx5_iface_config_t *config = ucs_derived_of(tl_config,
                                                         uct_rc_mlx5_iface_config_t);
-    uct_ib_mlx5_md_t UCS_V_UNUSED *md  = ucs_derived_of(tl_md, uct_ib_mlx5_md_t);
+    uct_ib_mlx5_md_t *md               = ucs_derived_of(tl_md, uct_ib_mlx5_md_t);
     uct_ib_iface_init_attr_t init_attr = {};
     ucs_status_t status;
 
@@ -971,7 +977,7 @@ static uct_iface_ops_t uct_rc_mlx5_iface_tl_ops = {
     .iface_get_address        = uct_rc_mlx5_iface_get_address,
     .iface_get_device_address = uct_ib_iface_get_device_address,
     .iface_is_reachable       = uct_rc_mlx5_iface_is_reachable
-    };
+};
 
 static ucs_status_t
 uct_rc_mlx5_query_tl_devices(uct_md_h md, uct_tl_device_resource_t **tl_devices_p,

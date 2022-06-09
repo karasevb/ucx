@@ -41,12 +41,13 @@ ucp_am_eager_multi_bcopy_proto_init(const ucp_proto_init_params_t *init_params)
         .super.hdr_size      = sizeof(ucp_am_hdr_t),
         .super.send_op       = UCT_EP_OP_AM_BCOPY,
         .super.memtype_op    = UCT_EP_OP_GET_SHORT,
-        .super.flags         = 0,
+        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
+        .max_lanes           = context->config.ext.max_eager_lanes,
+        .initial_reg_md_map  = 0,
         .first.lane_type     = UCP_LANE_TYPE_AM,
         .first.tl_cap_flags  = UCT_IFACE_FLAG_AM_BCOPY,
         .middle.lane_type    = UCP_LANE_TYPE_AM_BW,
-        .middle.tl_cap_flags = UCT_IFACE_FLAG_AM_BCOPY,
-        .max_lanes           = context->config.ext.max_eager_lanes
+        .middle.tl_cap_flags = UCT_IFACE_FLAG_AM_BCOPY
     };
 
     if (!ucp_am_check_init_params(init_params, UCP_AM_OP_ID_MASK_ALL,
@@ -77,17 +78,15 @@ static size_t ucp_am_eager_multi_bcopy_pack_args_first(void *dest, void *arg)
     ucp_am_hdr_t *hdr                    = dest;
     ucp_proto_multi_pack_ctx_t *pack_ctx = arg;
     ucp_request_t *req                   = pack_ctx->req;
-    size_t length, max_length;
+    size_t length;
 
     ucs_assertv(req->send.state.dt_iter.offset == 0, "offset %zu",
                 req->send.state.dt_iter.offset);
 
     ucp_am_fill_header(hdr, req);
 
-    max_length = ucs_min(ucp_am_send_req_total_size(req),
-                         pack_ctx->max_payload);
-    length     = ucp_am_eager_bcopy_pack_data(hdr + 1, req, max_length,
-                                              pack_ctx->next_iter);
+    length = ucp_am_eager_bcopy_pack(hdr + 1, req, pack_ctx->max_payload,
+                                     pack_ctx->next_iter);
     ucp_am_eager_fill_first_footer(UCS_PTR_BYTE_OFFSET(hdr + 1, length), req);
 
     return UCP_AM_FIRST_FRAG_META_LEN + length;
@@ -117,10 +116,12 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_eager_multi_bcopy_send_func(
         ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
         ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift)
 {
+    size_t user_hdr_size = req->send.msg_proto.am.header_length;
+
     return ucp_proto_eager_bcopy_multi_common_send_func(
             req, lpriv, next_iter, UCP_AM_ID_AM_FIRST,
             ucp_am_eager_multi_bcopy_pack_args_first,
-            UCP_AM_FIRST_FRAG_META_LEN, UCP_AM_ID_AM_MIDDLE,
+            UCP_AM_FIRST_FRAG_META_LEN + user_hdr_size, UCP_AM_ID_AM_MIDDLE,
             ucp_am_eager_multi_bcopy_pack_args_mid, UCP_AM_MID_FRAG_META_LEN);
 }
 
@@ -165,12 +166,14 @@ ucp_am_eager_multi_zcopy_proto_init(const ucp_proto_init_params_t *init_params)
         .super.hdr_size      = sizeof(ucp_am_hdr_t),
         .super.send_op       = UCT_EP_OP_AM_ZCOPY,
         .super.memtype_op    = UCT_EP_OP_LAST,
-        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY,
+        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY |
+                               UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
+        .max_lanes           = context->config.ext.max_eager_lanes,
+        .initial_reg_md_map  = 0,
         .first.lane_type     = UCP_LANE_TYPE_AM,
         .first.tl_cap_flags  = UCT_IFACE_FLAG_AM_ZCOPY,
         .middle.lane_type    = UCP_LANE_TYPE_AM_BW,
-        .middle.tl_cap_flags = UCT_IFACE_FLAG_AM_ZCOPY,
-        .max_lanes           = context->config.ext.max_eager_lanes
+        .middle.tl_cap_flags = UCT_IFACE_FLAG_AM_ZCOPY
     };
 
     if (!ucp_am_check_init_params(init_params, UCP_AM_OP_ID_MASK_ALL,
@@ -241,8 +244,8 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_eager_multi_zcopy_send_func(
     ucp_am_eager_zcopy_add_footer(req, footer_offset, lpriv->super.md_index,
                                   iov, &iov_count, footer_size);
 
-    return uct_ep_am_zcopy(req->send.ep->uct_eps[lpriv->super.lane], am_id,
-                           &hdr, sizeof(ucp_am_hdr_t), iov, iov_count, 0,
+    return uct_ep_am_zcopy(ucp_ep_get_lane(req->send.ep, lpriv->super.lane),
+                           am_id, &hdr, sizeof(ucp_am_hdr_t), iov, iov_count, 0,
                            &req->send.state.uct_comp);
 }
 
@@ -273,5 +276,5 @@ ucp_proto_t ucp_am_eager_multi_zcopy_proto = {
     .init     = ucp_am_eager_multi_zcopy_proto_init,
     .query    = ucp_proto_multi_query,
     .progress = {ucp_am_eager_multi_zcopy_proto_progress},
-    .abort    = ucp_proto_request_bcopy_abort
+    .abort    = ucp_proto_request_zcopy_abort
 };

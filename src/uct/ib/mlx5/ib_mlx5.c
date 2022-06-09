@@ -298,18 +298,25 @@ ucs_status_t uct_ib_mlx5_iface_create_qp(uct_ib_iface_t *iface,
 {
     ucs_status_t status;
 
-    status = uct_ib_mlx5_iface_fill_attr(iface, qp, attr);
+    status = uct_ib_mlx5_iface_get_res_domain(iface, qp);
     if (status != UCS_OK) {
-        return status;
+        goto err;
     }
+
+    uct_ib_mlx5_iface_fill_attr(iface, qp, attr);
 
     status = uct_ib_iface_create_qp(iface, &attr->super, &qp->verbs.qp);
     if (status != UCS_OK) {
-        return status;
+        goto err_put_res_domain;
     }
 
     qp->qp_num = qp->verbs.qp->qp_num;
     return UCS_OK;
+
+err_put_res_domain:
+    uct_ib_mlx5_iface_put_res_domain(qp);
+err:
+    return status;
 }
 
 #if !HAVE_DEVX
@@ -941,7 +948,7 @@ uct_ib_mlx5_select_sl(const uct_ib_iface_config_t *ib_config,
                       uint8_t *sl_p)
 {
     ucs_status_t status = UCS_OK;
-    const char UCS_V_UNUSED *sl_ar_support_str;
+    const char *sl_ar_support_str;
     uint16_t sl_allow_mask, sls_with_ar, sls_without_ar;
     ucs_string_buffer_t sls_with_ar_str, sls_without_ar_str;
     char sl_str[8];

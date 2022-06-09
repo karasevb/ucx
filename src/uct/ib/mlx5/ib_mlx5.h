@@ -157,6 +157,8 @@ struct mlx5_grh_av {
 #define UCT_IB_MLX5_DEVX_EVENT_TYPE_MASK  0xffff
 #define UCT_IB_MLX5_DEVX_EVENT_DATA_SHIFT 16
 
+#define UCT_IB_MLX5_DEVX_ECE_TRIG_RESP    0x10000000
+
 enum {
     /* Device supports KSM */
     UCT_IB_MLX5_MD_FLAG_KSM                  = UCS_BIT(0),
@@ -729,6 +731,24 @@ ucs_status_t uct_ib_mlx5_devx_modify_qp_state(uct_ib_mlx5_qp_t *qp,
                                               enum ibv_qp_state state);
 
 void uct_ib_mlx5_devx_destroy_qp(uct_ib_mlx5_md_t *md, uct_ib_mlx5_qp_t *qp);
+
+ucs_status_t uct_ib_mlx5_devx_obj_modify(struct mlx5dv_devx_obj *obj,
+                                         const void *in, size_t inlen,
+                                         void *out, size_t outlen,
+                                         char *msg_arg);
+
+struct mlx5dv_devx_obj *
+uct_ib_mlx5_devx_obj_create(struct ibv_context *context, const void *in,
+                            size_t inlen, void *out, size_t outlen,
+                            char *msg_arg);
+
+ucs_status_t
+uct_ib_mlx5_devx_obj_destroy(struct mlx5dv_devx_obj *obj, char *msg_arg);
+
+ucs_status_t uct_ib_mlx5_devx_general_cmd(struct ibv_context *context,
+                                          const void *in, size_t inlen,
+                                          void *out, size_t outlen,
+                                          char *msg_arg, int silent);
 
 ucs_status_t uct_ib_mlx5_devx_query_ooo_sl_mask(uct_ib_mlx5_md_t *md,
                                                 uint8_t port_num,

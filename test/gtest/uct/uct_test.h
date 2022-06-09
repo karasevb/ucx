@@ -20,7 +20,7 @@
 #include <common/mem_buffer.h>
 #include <common/test.h>
 #include <vector>
-
+#include <atomic>
 
 
 #define DEFAULT_DELAY_MS           1.0
@@ -167,6 +167,8 @@ protected:
         const uct_cm_attr_t& cm_attr() const;
 
         uct_listener_h listener() const;
+
+        uct_listener_h revoke_listener() const;
 
         uct_iface_h iface() const;
 
@@ -319,7 +321,8 @@ protected:
         }
     }
 
-    void wait_for_bits(volatile uint64_t *flag, uint64_t mask,
+    template <typename FlagType, typename MaskType>
+    void wait_for_bits(FlagType *flag, MaskType mask,
                        double timeout = DEFAULT_TIMEOUT_SEC) const
     {
         ucs_time_t deadline = ucs_get_time() +
@@ -351,8 +354,6 @@ protected:
     virtual void modify_config(const std::string& name, const std::string& value,
                                modify_config_mode_t mode = FAIL_IF_NOT_EXIST);
     bool get_config(const std::string& name, std::string& value) const;
-    void stats_activate();
-    void stats_restore();
 
     virtual bool has_transport(const std::string& tl_name) const;
     virtual bool has_ud() const;

@@ -76,7 +76,7 @@ unsigned ucp_cm_client_try_next_cm_progress(void *arg)
 
     ucs_assert(!(ucp_ep->flags & UCP_EP_FLAG_FAILED));
 
-    cm_idx = ucp_ep_ext_control(ucp_ep)->cm_idx;
+    cm_idx = ucp_ep->ext->cm_idx;
     ucs_assert(cm_idx != UCP_NULL_RESOURCE);
 
     cm_wireup_ep = ucp_ep_get_cm_wireup_ep(ucp_ep);
@@ -105,7 +105,7 @@ unsigned ucp_cm_client_try_next_cm_progress(void *arg)
 static int ucp_cm_client_get_next_cm_idx(ucp_ep_h ep)
 {
     ucp_worker_h worker          = ep->worker;
-    ucp_rsc_index_t next_cm_idx  = ucp_ep_ext_control(ep)->cm_idx + 1;
+    ucp_rsc_index_t next_cm_idx  = ep->ext->cm_idx + 1;
     ucp_rsc_index_t num_cm_cmpts = ucp_worker_num_cm_cmpts(worker);
 
     for (; next_cm_idx < num_cm_cmpts; ++next_cm_idx) {
@@ -149,7 +149,7 @@ static int ucp_cm_client_try_fallback_cms(ucp_ep_h ep)
         return 0;
     }
 
-    ucp_ep_ext_control(ep)->cm_idx = next_cm_idx;
+    ep->ext->cm_idx = next_cm_idx;
     uct_worker_progress_register_safe(worker->uct,
                                       ucp_cm_client_try_next_cm_progress,
                                       ep, UCS_CALLBACKQ_FLAG_ONESHOT,
@@ -321,7 +321,7 @@ ucp_cm_ep_priv_data_pack(ucp_ep_h ep, const ucp_tl_bitmap_t *tl_bitmap,
     }
 
     sa_data_length = ucp_cm_priv_data_length(ucp_addr_size, sa_data_version);
-    cm_idx         = ucp_ep_ext_control(ep)->cm_idx;
+    cm_idx         = ep->ext->cm_idx;
     if (worker->cms[cm_idx].attr.max_conn_priv < sa_data_length) {
         ucs_log(log_level,
                 "CM private data buffer is too small to pack UCP endpoint"
@@ -365,13 +365,13 @@ ucp_wireup_cm_ep_cleanup(ucp_ep_t *ucp_ep, ucs_queue_head_t *queue)
         /* During discarding transfer the pending queues content from the
          * previously configured UCP EP to a temporary queue for further
          * replaying */
-        ucp_worker_discard_uct_ep(ucp_ep, ucp_ep->uct_eps[lane_idx],
+        ucp_worker_discard_uct_ep(ucp_ep, ucp_ep_get_lane(ucp_ep, lane_idx),
                                   ucp_ep_get_rsc_index(ucp_ep, lane_idx),
                                   UCT_FLUSH_FLAG_CANCEL,
                                   ucp_request_purge_enqueue_cb, &queue,
                                   (ucp_send_nbx_callback_t)ucs_empty_function,
                                   NULL);
-        ucp_ep->uct_eps[lane_idx] = NULL;
+        ucp_ep_set_lane(ucp_ep, lane_idx, NULL);
     }
 }
 
@@ -383,6 +383,7 @@ static ucs_status_t ucp_cm_ep_init_lanes(ucp_ep_h ep,
     ucp_lane_index_t lane_idx;
     ucp_rsc_index_t rsc_idx;
     uint8_t path_index;
+    uct_ep_h uct_ep;
 
     UCS_BITMAP_CLEAR(tl_bitmap);
     for (lane_idx = 0; lane_idx < ucp_ep_num_lanes(ep); ++lane_idx) {
@@ -395,15 +396,17 @@ static ucs_status_t ucp_cm_ep_init_lanes(ucp_ep_h ep,
             continue;
         }
 
-        status = ucp_wireup_ep_create(ep, &ep->uct_eps[lane_idx]);
+        status = ucp_wireup_ep_create(ep, &uct_ep);
         if (status != UCS_OK) {
             goto out;
         }
 
+        ucp_ep_set_lane(ep, lane_idx, uct_ep);
+
         UCS_BITMAP_SET(*tl_bitmap, rsc_idx);
         if (ucp_ep_config(ep)->p2p_lanes & UCS_BIT(lane_idx)) {
             path_index = ucp_ep_get_path_index(ep, lane_idx);
-            status     = ucp_wireup_ep_connect(ep->uct_eps[lane_idx], 0,
+            status     = ucp_wireup_ep_connect(ucp_ep_get_lane(ep, lane_idx), 0,
                                                rsc_idx, path_index, 0, NULL);
             if (status != UCS_OK) {
                 goto out;
@@ -429,8 +432,6 @@ static unsigned ucp_cm_client_uct_connect_progress(void *arg)
     ucp_context_h context                      = worker->context;
     ucp_wireup_ep_t *cm_wireup_ep              =
             ucp_ep_get_cm_wireup_ep(ep);
-    /* Set to NULL to call ucs_free safely */
-    void *ucp_addr                             = NULL;
     unsigned ep_init_flags;
     unsigned i;
     ucp_tl_bitmap_t tl_bitmap;
@@ -532,7 +533,6 @@ try_fallback:
 err:
     ucp_ep_set_failed(ep, ucp_ep_get_cm_lane(ep), status);
 out:
-    ucs_free(ucp_addr);
     UCS_ASYNC_UNBLOCK(&worker->async);
     return 1;
 }
@@ -582,8 +582,7 @@ ucp_cm_client_resolve_cb(void *user_data, const uct_cm_ep_resolve_args_t *args)
               "tl_bitmap " UCT_TL_BITMAP_FMT " on cm %s",
               ep, args->dev_name,
               UCT_TL_BITMAP_ARG(&cm_wireup_ep->cm_resolve_tl_bitmap),
-              ucp_context_cm_name(worker->context,
-                                  ucp_ep_ext_control(ep)->cm_idx));
+              ucp_context_cm_name(worker->context, ep->ext->cm_idx));
 
     uct_worker_progress_register_safe(worker->uct,
                                       ucp_cm_client_uct_connect_progress,
@@ -624,7 +623,6 @@ static unsigned ucp_cm_client_connect_progress(void *arg)
     ucp_unpacked_address_t addr;
     ucp_tl_bitmap_t tl_bitmap;
     ucp_rsc_index_t dev_index;
-    ucp_rsc_index_t UCS_V_UNUSED rsc_index;
     unsigned addr_idx;
     unsigned addr_indices[UCP_MAX_RESOURCES];
     ucs_status_t status;
@@ -774,9 +772,8 @@ static void ucp_cm_client_connect_cb(uct_ep_h uct_cm_ep, void *arg,
         ucs_debug("failed status on client connect callback: %s "
                   "(sockaddr_cm=%s, cms_used_idx=%d)",
                   ucs_status_string(status),
-                  ucp_context_cm_name(worker->context,
-                                      ucp_ep_ext_control(ucp_ep)->cm_idx),
-                  ucp_ep_ext_control(ucp_ep)->cm_idx);
+                  ucp_context_cm_name(worker->context, ucp_ep->ext->cm_idx),
+                  ucp_ep->ext->cm_idx);
         goto err_out;
     }
 
@@ -838,9 +835,8 @@ static void ucp_ep_cm_remote_disconnect_progress(ucp_ep_h ucp_ep)
 
     ucs_assert(ucp_ep->flags & UCP_EP_FLAG_LOCAL_CONNECTED);
     if ((ucp_ep->flags & UCP_EP_FLAG_CLOSED) &&
-        (ucp_ep_ext_control(ucp_ep)->close_req != NULL)) {
-        ucp_request_complete_send(ucp_ep_ext_control(ucp_ep)->close_req,
-                                  UCS_OK);
+        (ucp_ep->ext->close_req != NULL)) {
+        ucp_request_complete_send(ucp_ep->ext->close_req, UCS_OK);
         return;
     }
 
@@ -884,17 +880,17 @@ static unsigned ucp_ep_cm_disconnect_progress(void *arg)
            - if close req is valid this is ucp_ep_close_nb request and it will
              be completed as the ep is destroyed, i.e. flushed and disconnected
              with any status */
-        if (ucp_ep_ext_control(ucp_ep)->close_req != NULL) {
+        if (ucp_ep->ext->close_req != NULL) {
             ucs_assert(ucp_ep->flags & UCP_EP_FLAG_CLOSED);
         }
     } else if (ucp_ep->flags & UCP_EP_FLAG_LOCAL_CONNECTED) {
         ucp_ep_cm_remote_disconnect_progress(ucp_ep);
-    } else if (ucp_ep_ext_control(ucp_ep)->close_req != NULL) {
+    } else if (ucp_ep->ext->close_req != NULL) {
         /* if the EP is not local connected, the EP has been closed and flushed,
            CM lane is disconnected, complete close request and destroy EP */
         ucs_assert(ucp_ep->flags & UCP_EP_FLAG_CLOSED);
         ucp_ep_update_flags(ucp_ep, 0, UCP_EP_FLAG_REMOTE_CONNECTED);
-        close_req = ucp_ep_ext_control(ucp_ep)->close_req;
+        close_req = ucp_ep->ext->close_req;
         ucp_ep_local_disconnect_progress(close_req);
         /* don't touch UCP EP after local disconnect, since it is not valid
          * anymore */
@@ -948,7 +944,7 @@ static void ucp_cm_disconnect_cb(uct_ep_h uct_cm_ep, void *arg)
 ucs_status_t ucp_ep_client_cm_create_uct_ep(ucp_ep_h ucp_ep)
 {
     ucp_wireup_ep_t *wireup_ep = ucp_ep_get_cm_wireup_ep(ucp_ep);
-    ucp_rsc_index_t cm_idx     = ucp_ep_ext_control(ucp_ep)->cm_idx;
+    ucp_rsc_index_t cm_idx     = ucp_ep->ext->cm_idx;
     ucp_worker_h worker        = ucp_ep->worker;
     uct_ep_params_t cm_lane_params;
     ucs_sock_addr_t remote_addr, local_addr;
@@ -1014,10 +1010,10 @@ ucs_status_t ucp_ep_client_cm_connect_start(ucp_ep_h ucp_ep,
     ucp_wireup_ep_t *wireup_ep = ucp_ep_get_cm_wireup_ep(ucp_ep);
     ucs_status_t status;
 
-    ucs_assert(ucp_ep_ext_control(ucp_ep)->cm_idx == UCP_NULL_RESOURCE);
+    ucs_assert(ucp_ep->ext->cm_idx == UCP_NULL_RESOURCE);
 
-    ucp_ep_ext_control(ucp_ep)->cm_idx = 0;
-    wireup_ep->ep_init_flags           = ucp_ep_init_flags(worker, params);
+    ucp_ep->ext->cm_idx      = 0;
+    wireup_ep->ep_init_flags = ucp_ep_init_flags(worker, params);
 
     /* save the address from the ep_params on the wireup_ep */
     status = ucs_sockaddr_copy((struct sockaddr*)&wireup_ep->cm_remote_sockaddr,
@@ -1397,11 +1393,10 @@ ucs_status_t ucp_ep_cm_connect_server_lane(ucp_ep_h ep,
     uct_ep_h uct_ep;
     ucs_status_t status;
 
-    ucs_assert(lane != UCP_NULL_LANE);
-    ucs_assert(ep->uct_eps[lane] == NULL);
+    ucs_assert(ucp_ep_get_lane(ep, lane) == NULL);
 
     /* TODO: split CM and wireup lanes */
-    status = ucp_wireup_ep_create(ep, &ep->uct_eps[lane]);
+    status = ucp_wireup_ep_create(ep, &uct_ep);
     if (status != UCS_OK) {
         ucs_warn("server ep %p failed to create wireup CM lane, status %s",
                  ep, ucs_status_string(status));
@@ -1409,7 +1404,8 @@ ucs_status_t ucp_ep_cm_connect_server_lane(ucp_ep_h ep,
         goto err;
     }
 
-    ucp_ep_ext_control(ep)->cm_idx = cm_idx;
+    ucp_ep_set_lane(ep, lane, uct_ep);
+    ep->ext->cm_idx = cm_idx;
 
     /* create a server side CM endpoint */
     ucs_trace("server ep %p: uct_ep[%d], worker %p, cm_idx=%d, cm=%s",
@@ -1444,7 +1440,8 @@ ucs_status_t ucp_ep_cm_connect_server_lane(ucp_ep_h ep,
         goto err;
     }
 
-    ucp_wireup_ep_set_next_ep(ep->uct_eps[lane], uct_ep, UCP_NULL_RESOURCE);
+    ucp_wireup_ep_set_next_ep(ucp_ep_get_lane(ep, lane), uct_ep,
+                              UCP_NULL_RESOURCE);
     ucp_ep_update_flags(ep, UCP_EP_FLAG_LOCAL_CONNECTED, 0);
     return UCS_OK;
 

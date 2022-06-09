@@ -249,12 +249,10 @@ uct_rc_mlx5_devx_init_rx_tm(uct_rc_mlx5_iface_common_t *iface,
         return UCS_OK;
     }
 
-    iface->rx.srq.devx.obj = mlx5dv_devx_obj_create(dev->ibv_context,
-                                                    in, sizeof(in),
-                                                    out, sizeof(out));
+    iface->rx.srq.devx.obj = uct_ib_mlx5_devx_obj_create(dev->ibv_context, in,
+                                                         sizeof(in), out,
+                                                         sizeof(out), "XRQ");
     if (iface->rx.srq.devx.obj == NULL) {
-        ucs_error("mlx5dv_devx_obj_create(XRQ) failed, syndrome %x: %m",
-                  UCT_IB_MLX5DV_GET(create_xrq_out, out, syndrome));
         status = UCS_ERR_IO_ERROR;
         goto err_cleanup_srq;
     }
@@ -298,12 +296,10 @@ ucs_status_t uct_rc_mlx5_devx_init_rx(uct_rc_mlx5_iface_common_t *iface,
         return status;
     }
 
-    iface->rx.srq.devx.obj = mlx5dv_devx_obj_create(dev->ibv_context,
-                                                    in, sizeof(in),
-                                                    out, sizeof(out));
+    iface->rx.srq.devx.obj = uct_ib_mlx5_devx_obj_create(dev->ibv_context, in,
+                                                         sizeof(in), out,
+                                                         sizeof(out), "RMP");
     if (iface->rx.srq.devx.obj == NULL) {
-        ucs_error("mlx5dv_devx_obj_create(RMP) failed, syndrome %x: %m",
-                  UCT_IB_MLX5DV_GET(create_rmp_out, out, syndrome));
         status = UCS_ERR_IO_ERROR;
         goto err_cleanup_srq;
     }
@@ -410,6 +406,10 @@ uct_rc_mlx5_iface_common_devx_connect_qp(uct_rc_mlx5_iface_common_t *iface,
     UCT_IB_MLX5DV_SET(qpc, qpc, rwe, true);
     UCT_IB_MLX5DV_SET(qpc, qpc, rae, true);
     UCT_IB_MLX5DV_SET(qpc, qpc, min_rnr_nak, iface->super.config.min_rnr_timer);
+
+    if (md->super.ece_enable) {
+        UCT_IB_MLX5DV_SET(init2rtr_qp_in, in_2rtr, ece, iface->super.config.ece);
+    }
 
     UCT_IB_MLX5DV_SET(init2rtr_qp_in, in_2rtr, opt_param_mask, opt_param_mask);
 
