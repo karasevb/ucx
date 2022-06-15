@@ -114,7 +114,7 @@ static size_t ucp_am_eager_multi_bcopy_pack_args_mid(void *dest, void *arg)
 
 static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_eager_multi_bcopy_send_func(
         ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-        ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift)
+        ucp_datatype_iter_t *next_iter)
 {
     size_t user_hdr_size = req->send.msg_proto.am.header_length;
 
@@ -207,7 +207,7 @@ ucp_am_eager_fill_middle_header(ucp_am_mid_hdr_t *hdr, ucp_request_t *req)
 
 static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_eager_multi_zcopy_send_func(
         ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-        ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift)
+        ucp_datatype_iter_t *next_iter)
 {
     size_t user_hdr_size = req->send.msg_proto.am.header_length;
     union {

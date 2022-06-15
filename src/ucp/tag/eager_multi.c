@@ -107,8 +107,7 @@ ucp_proto_eager_bcopy_multi_init(const ucp_proto_init_params_t *init_params)
 static UCS_F_ALWAYS_INLINE ucs_status_t
 ucp_proto_eager_bcopy_multi_send_func(ucp_request_t *req,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
-                                      ucp_datatype_iter_t *next_iter,
-                                      ucp_lane_index_t *lane_shift)
+                                      ucp_datatype_iter_t *next_iter)
 {
     return ucp_proto_eager_bcopy_multi_common_send_func(
             req, lpriv, next_iter, UCP_AM_ID_EAGER_FIRST,
@@ -163,7 +162,7 @@ static size_t ucp_eager_sync_bcopy_pack_first(void *dest, void *arg)
 static UCS_F_ALWAYS_INLINE ucs_status_t
 ucp_proto_eager_sync_bcopy_multi_send_func(
         ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-        ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift)
+        ucp_datatype_iter_t *next_iter)
 {
     return ucp_proto_eager_bcopy_multi_common_send_func(
             req, lpriv, next_iter, UCP_AM_ID_EAGER_SYNC_FIRST,
@@ -245,8 +244,7 @@ ucp_proto_eager_zcopy_multi_init(const ucp_proto_init_params_t *init_params)
 static UCS_F_ALWAYS_INLINE ucs_status_t
 ucp_proto_eager_zcopy_multi_send_func(ucp_request_t *req,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
-                                      ucp_datatype_iter_t *next_iter,
-                                      ucp_lane_index_t *lane_shift)
+                                      ucp_datatype_iter_t *next_iter)
 {
     union {
         ucp_eager_first_hdr_t  first;

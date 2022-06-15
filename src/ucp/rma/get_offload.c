@@ -25,8 +25,7 @@ static void ucp_proto_get_offload_bcopy_unpack(void *arg, const void *data,
 static UCS_F_ALWAYS_INLINE ucs_status_t
 ucp_proto_get_offload_bcopy_send_func(ucp_request_t *req,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
-                                      ucp_datatype_iter_t *next_iter,
-                                      ucp_lane_index_t *lane_shift)
+                                      ucp_datatype_iter_t *next_iter)
 {
     uct_rkey_t tl_rkey = ucp_rkey_get_tl_rkey(req->send.rma.rkey,
                                               lpriv->super.rkey_index);
@@ -120,8 +119,7 @@ ucp_proto_t ucp_get_offload_bcopy_proto = {
 static UCS_F_ALWAYS_INLINE ucs_status_t
 ucp_proto_get_offload_zcopy_send_func(ucp_request_t *req,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
-                                      ucp_datatype_iter_t *next_iter,
-                                      ucp_lane_index_t *lane_shift)
+                                      ucp_datatype_iter_t *next_iter)
 {
     uct_rkey_t tl_rkey = ucp_rkey_get_tl_rkey(req->send.rma.rkey,
                                               lpriv->super.rkey_index);

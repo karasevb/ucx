@@ -247,6 +247,9 @@ ucp_proto_common_get_lane_perf(const ucp_proto_common_init_params_t *params,
     perf->sys_latency        = 0;
     perf->min_length         = ucs_max(params->min_length, tl_min_frag);
     perf->max_frag           = tl_max_frag;
+    perf->opt_zcopy_align    =
+        ucp_proto_common_get_iface_attr_field(&wiface->attr,
+                                              params->opt_zcopy_align_offs, 1);
 
     /* For zero copy send, consider local system topology distance */
     if (params->flags & UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY) {
