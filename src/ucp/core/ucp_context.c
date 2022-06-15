@@ -368,7 +368,7 @@ static ucs_config_field_t ucp_context_config_table[] = {
   {"PROTO_INFO", "n", "Enable printing protocols information.",
    ucs_offsetof(ucp_context_config_t, proto_info), UCS_CONFIG_TYPE_BOOL},
 
-  {"RNDV_ALIGN_THRESH", "64kb",
+  {"RNDV_ALIGN_THRESH", "64kB",
    "If the rendezvous payload size is larger than this value, it could be split\n"
    "in order to optimize memory alignment",
    ucs_offsetof(ucp_context_config_t, rndv_align_thresh), UCS_CONFIG_TYPE_MEMUNITS},

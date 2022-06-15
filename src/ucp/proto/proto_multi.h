@@ -63,7 +63,9 @@ typedef struct {
     size_t                      max_frag_sum; /* 'max_frag' sum of all lanes */
     ucp_lane_map_t              lane_map;     /* Map of used lanes */
     ucp_lane_index_t            num_lanes;    /* Number of lanes to use */
-    size_t                      max_align;    /* Largest alignment */
+    size_t                      align_thresh; /* Cached value of threshold
+                                                 for enabling RNDV data split
+                                                 alignment */
     ucp_proto_multi_lane_priv_t lanes[0];     /* Array of lanes */
 } ucp_proto_multi_priv_t;
 
@@ -102,7 +104,7 @@ typedef struct {
 
 typedef ucs_status_t (*ucp_proto_send_multi_cb_t)(
                 ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-                ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift);
+                ucp_datatype_iter_t *next_iter);
 
 
 /**

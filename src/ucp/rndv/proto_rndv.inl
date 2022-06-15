@@ -225,9 +225,9 @@ ucp_proto_rndv_bulk_request_init(ucp_request_t *req,
  * including when the request is a fragment and starts from nonzero offset.
  */
 static UCS_F_ALWAYS_INLINE size_t
-ucp_proto_rndv_bulk_max_payload_inner(ucp_request_t *req,
-                                      const ucp_proto_rndv_bulk_priv_t *rpriv,
-                                      const ucp_proto_multi_lane_priv_t *lpriv)
+ucp_proto_rndv_bulk_max_payload(ucp_request_t *req,
+                                const ucp_proto_rndv_bulk_priv_t *rpriv,
+                                const ucp_proto_multi_lane_priv_t *lpriv)
 {
     size_t total_offset = ucp_proto_rndv_request_total_offset(req);
     size_t total_length = ucp_proto_rndv_request_total_length(req);
@@ -270,14 +270,6 @@ ucp_proto_rndv_bulk_max_payload_inner(ucp_request_t *req,
     return max_payload;
 }
 
-static UCS_F_ALWAYS_INLINE size_t
-ucp_proto_rndv_bulk_max_payload(ucp_request_t *req,
-                                const ucp_proto_rndv_bulk_priv_t *rpriv,
-                                const ucp_proto_multi_lane_priv_t *lpriv)
-{
-    return ucp_proto_rndv_bulk_max_payload_inner(req, rpriv, lpriv);
-}
-
 /**
  * Return the fragment size to ensure alignment for buffer of main data
  * portion. Either return max_payload when the buffer is initially aligned,
@@ -287,10 +279,10 @@ static UCS_F_ALWAYS_INLINE size_t
 ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
                                       const ucp_proto_rndv_bulk_priv_t *rpriv,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
-                                      ucp_lane_index_t *lane_shift)
+                                      unsigned *lane_shift)
 {
     size_t total_offset = ucp_proto_rndv_request_total_offset(req);
-    size_t align_thresh = rpriv->align_thresh;
+    size_t align_thresh = rpriv->mpriv.align_thresh;
     size_t align        = lpriv->opt_zcopy_align;
     size_t max_payload, align_size;
     unsigned buffer_padding;
@@ -301,9 +293,8 @@ ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
                 "dt_class=%d (%s)", req->send.state.dt_iter.dt_class,
                 ucp_datatype_class_names[req->send.state.dt_iter.dt_class]);
 
-    max_payload  =
-        ucp_proto_rndv_bulk_max_payload_inner(req, rpriv, lpriv);
-    if (align_thresh > max_payload) {
+    max_payload = ucp_proto_rndv_bulk_max_payload(req, rpriv, lpriv);
+    if (max_payload < align_thresh) {
         return max_payload;
     }
     buffer = UCS_PTR_BYTE_OFFSET(req->send.state.dt_iter.type.contig.buffer,
@@ -312,6 +303,7 @@ ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
     if (buffer_padding == 0) {
         return max_payload;
     }
+
     align_size = align - buffer_padding;
     *lane_shift = 0;
 

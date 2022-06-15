@@ -57,9 +57,6 @@ typedef struct {
 typedef struct {
     ucp_proto_rndv_ack_priv_t super;
 
-    /* Cached value of threshold for enabling RNDV data split alignment */
-    size_t                    align_thresh;
-
     /*
      * Multi-lane common part.
      * Must be the last element in this struct, since it's variable-size and

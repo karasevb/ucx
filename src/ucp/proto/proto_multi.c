@@ -34,7 +34,6 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
     ucp_md_map_t reg_md_map;
     uint32_t weight_sum;
     ucs_status_t status;
-    const uct_iface_attr_t *iface_attr;
 
     ucs_assert(params->max_lanes >= 1);
     ucs_assert(params->max_lanes <= UCP_PROTO_MAX_LANES);
@@ -126,7 +125,6 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
     perf.max_frag       = SIZE_MAX;
     perf.min_length     = 0;
     weight_sum          = 0;
-    mpriv->max_align    = 0;
     ucs_for_each_bit(lane, lane_map) {
         ucs_assert(lane < UCP_MAX_LANES);
 
@@ -198,16 +196,14 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
         lpriv->weight_sum    = weight_sum;
         lpriv->max_frag_sum  = mpriv->max_frag_sum;
 
-        iface_attr = ucp_proto_common_get_iface_attr(&params->super.super,
-                                                     lpriv->super.lane);
-        if (params->super.send_op == UCT_EP_OP_GET_ZCOPY) {
-            lpriv->opt_zcopy_align = iface_attr->cap.get.opt_zcopy_align;
-        } else if (params->super.send_op == UCT_EP_OP_PUT_ZCOPY) {
-            lpriv->opt_zcopy_align = iface_attr->cap.put.opt_zcopy_align;
+        if ((params->super.send_op == UCT_EP_OP_GET_ZCOPY) ||
+            (params->super.send_op == UCT_EP_OP_PUT_ZCOPY)) {
+            lpriv->opt_zcopy_align = lane_perf->opt_zcopy_align;
         } else {
             lpriv->opt_zcopy_align = 1;
         }
-        mpriv->max_align = ucs_max(mpriv->max_align, lpriv->opt_zcopy_align);
+        mpriv->align_thresh = ucs_max(mpriv->align_thresh,
+                                      lpriv->opt_zcopy_align);
     }
 
     /* Fill the size of private data according to number of used lanes */
