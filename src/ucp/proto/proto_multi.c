@@ -127,6 +127,7 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
     mpriv->num_lanes    = 0;
     mpriv->min_frag     = 0;
     mpriv->max_frag_sum = 0;
+    mpriv->align_thresh = 0;
     perf.max_frag       = SIZE_MAX;
     perf.min_length     = 0;
     weight_sum          = 0;

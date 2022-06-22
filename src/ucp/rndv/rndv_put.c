@@ -349,7 +349,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_rndv_put_zcopy_send_func(
         ucp_datatype_iter_t *next_iter)
 {
     const ucp_proto_rndv_put_priv_t *rpriv = req->send.proto_config->priv;
-    unsigned lane_shift                    = 1;
+    ucp_lane_index_t lane_shift;
     size_t max_payload;
     uct_iov_t iov;
     ucs_status_t status;
@@ -373,7 +373,7 @@ ucp_proto_rndv_put_zcopy_send_progress(uct_pending_req_t *uct_req)
 {
     ucp_request_t *req = ucs_container_of(uct_req, ucp_request_t, send.uct);
     const ucp_proto_rndv_put_priv_t *rpriv = req->send.proto_config->priv;
-    unsigned lane_shift;
+    ucp_lane_index_t lane_shift;
 
     return ucp_proto_multi_zcopy_progress_custom_lane(
             req, &rpriv->bulk.mpriv, ucp_proto_rndv_put_common_request_init,

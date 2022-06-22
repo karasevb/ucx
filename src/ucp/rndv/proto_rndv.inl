@@ -279,7 +279,7 @@ static UCS_F_ALWAYS_INLINE size_t
 ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
                                       const ucp_proto_rndv_bulk_priv_t *rpriv,
                                       const ucp_proto_multi_lane_priv_t *lpriv,
-                                      unsigned *lane_shift)
+                                      ucp_lane_index_t *lane_shift)
 {
     size_t total_offset = ucp_proto_rndv_request_total_offset(req);
     size_t align_thresh = rpriv->mpriv.align_thresh;
@@ -292,6 +292,8 @@ ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
     ucs_assertv(req->send.state.dt_iter.dt_class == UCP_DATATYPE_CONTIG,
                 "dt_class=%d (%s)", req->send.state.dt_iter.dt_class,
                 ucp_datatype_class_names[req->send.state.dt_iter.dt_class]);
+
+    *lane_shift = 1;
 
     max_payload = ucp_proto_rndv_bulk_max_payload(req, rpriv, lpriv);
     if (max_payload < align_thresh) {

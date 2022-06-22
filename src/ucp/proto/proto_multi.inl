@@ -120,7 +120,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_handle_send_error(
 static UCS_F_ALWAYS_INLINE void
 ucp_proto_multi_req_send_lane_shift(ucp_request_t *req,
                                     ucp_lane_index_t num_lanes,
-                                    unsigned lane_shift)
+                                    ucp_lane_index_t lane_shift)
 {
     ucp_lane_index_t lane_idx;
 
@@ -140,7 +140,8 @@ ucp_proto_multi_progress_custom_lane(ucp_request_t *req,
                                      const ucp_proto_multi_priv_t *mpriv,
                                      ucp_proto_send_multi_cb_t send_func,
                                      ucp_proto_complete_cb_t complete_func,
-                                     unsigned dt_mask, unsigned *lane_shift)
+                                     unsigned dt_mask,
+                                     ucp_lane_index_t *lane_shift)
 {
     const ucp_proto_multi_lane_priv_t *lpriv;
     ucp_datatype_iter_t next_iter;
@@ -151,8 +152,9 @@ ucp_proto_multi_progress_custom_lane(ucp_request_t *req,
                 "lane_idx=%d num_lanes=%d", req->send.multi_lane_idx,
                 mpriv->num_lanes);
 
-    lane_idx = req->send.multi_lane_idx;
-    lpriv    = &mpriv->lanes[lane_idx];
+    *lane_shift = 0;
+    lane_idx    = req->send.multi_lane_idx;
+    lpriv       = &mpriv->lanes[lane_idx];
 
     /* send the next fragment */
     status = send_func(req, lpriv, &next_iter);
@@ -186,15 +188,17 @@ ucp_proto_multi_progress(ucp_request_t *req,
                          ucp_proto_complete_cb_t complete_func,
                          unsigned dt_mask)
 {
-    unsigned lane_shift = 0;
+    ucp_lane_index_t lane_shift;
     ucs_status_t status;
 
     status = ucp_proto_multi_progress_custom_lane(req, mpriv, send_func,
                                                   complete_func, dt_mask,
                                                   &lane_shift);
 
-    /* move to the next lane, in a round-robin fashion */
-    ucp_proto_multi_req_send_lane_shift(req, mpriv->num_lanes, lane_shift);
+    if (status == UCS_INPROGRESS) {
+        /* move to the next lane, in a round-robin fashion */
+        ucp_proto_multi_req_send_lane_shift(req, mpriv->num_lanes, lane_shift);
+    }
 
     return status;
 }
@@ -224,7 +228,7 @@ ucp_proto_multi_zcopy_progress_custom_lane(
         ucp_proto_init_cb_t init_func, unsigned uct_mem_flags, unsigned dt_mask,
         ucp_proto_send_multi_cb_t send_func,
         ucp_proto_complete_cb_t complete_func,
-        uct_completion_callback_t uct_comp_cb, unsigned *lane_shift)
+        uct_completion_callback_t uct_comp_cb, ucp_lane_index_t *lane_shift)
 {
     ucs_status_t status;
 
@@ -257,7 +261,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_zcopy_progress(
         ucp_proto_complete_cb_t complete_func,
         uct_completion_callback_t uct_comp_cb)
 {
-    unsigned lane_shift = 0;
+    ucp_lane_index_t lane_shift;
     ucs_status_t status;
 
     status =
@@ -265,9 +269,10 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_zcopy_progress(
                                                    uct_mem_flags, dt_mask,
                                                    send_func, complete_func,
                                                    uct_comp_cb, &lane_shift);
-
-    /* move to the next lane, in a round-robin fashion */
-    ucp_proto_multi_req_send_lane_shift(req, mpriv->num_lanes, lane_shift);
+    if (status == UCS_INPROGRESS) {
+        /* move to the next lane, in a round-robin fashion */
+        ucp_proto_multi_req_send_lane_shift(req, mpriv->num_lanes, lane_shift);
+    }
 
     return status;
 }

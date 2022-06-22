@@ -136,7 +136,7 @@ ucp_proto_rndv_get_zcopy_send_func(ucp_request_t *req,
     /* coverity[tainted_data_downcast] */
     const ucp_proto_rndv_bulk_priv_t *rpriv = req->send.proto_config->priv;
     size_t offset                           = req->send.state.dt_iter.offset;
-    unsigned lane_shift                     = 1;
+    ucp_lane_index_t lane_shift;
     size_t max_payload;
     uct_iov_t iov;
     ucs_status_t status;
@@ -167,7 +167,7 @@ ucp_proto_rndv_get_zcopy_fetch_progress(uct_pending_req_t *uct_req)
                                                                send.uct);
     /* coverity[tainted_data_downcast] */
     const ucp_proto_rndv_bulk_priv_t *rpriv = req->send.proto_config->priv;
-    unsigned lane_shift;
+    ucp_lane_index_t lane_shift;
 
     return ucp_proto_multi_zcopy_progress_custom_lane(
             req, &rpriv->mpriv, ucp_proto_rndv_get_common_request_init,
