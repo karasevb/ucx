@@ -283,7 +283,7 @@ ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
 {
     size_t total_offset = ucp_proto_rndv_request_total_offset(req);
     size_t align_thresh = rpriv->mpriv.align_thresh;
-    size_t align        = lpriv->opt_zcopy_align;
+    size_t align        = lpriv->opt_align;
     size_t max_payload, align_size;
     unsigned buffer_padding;
     void *buffer;
@@ -299,6 +299,7 @@ ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
     if (max_payload < align_thresh) {
         return max_payload;
     }
+
     buffer = UCS_PTR_BYTE_OFFSET(req->send.state.dt_iter.type.contig.buffer,
                                  total_offset);
     buffer_padding = ((size_t)buffer) % align;

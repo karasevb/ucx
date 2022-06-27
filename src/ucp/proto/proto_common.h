@@ -98,9 +98,9 @@ typedef struct {
     ptrdiff_t               max_iov_offs;
 
     /* Offset in uct_iface_attr_t structure of the field which specifies the
-     * optimal alignment for zero-copy buffer address for the UCT operation used
+     * optimal alignment for buffer address for the UCT operation used
      * by this protocol */
-    ptrdiff_t               opt_zcopy_align_offs;
+    ptrdiff_t               opt_align_offs;
 
     /* Header size on the first lane */
     size_t                  hdr_size;
@@ -146,8 +146,8 @@ typedef struct {
     /* Maximum single message length */
     size_t max_frag;
 
-    /* Optimal zero-copy buffer alignment */
-    size_t opt_zcopy_align;
+    /* Optimal buffer alignment */
+    size_t opt_align;
 } ucp_proto_common_tl_perf_t;
 
 

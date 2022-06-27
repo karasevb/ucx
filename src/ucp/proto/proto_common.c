@@ -255,7 +255,7 @@ static void ucp_proto_common_tl_perf_reset(ucp_proto_common_tl_perf_t *tl_perf)
     tl_perf->sys_latency        = 0;
     tl_perf->min_length         = 0;
     tl_perf->max_frag           = SIZE_MAX;
-    tl_perf->opt_zcopy_align    = 1;
+    tl_perf->opt_align          = 1;
 }
 
 ucs_status_t
@@ -315,9 +315,9 @@ ucp_proto_common_get_lane_perf(const ucp_proto_common_init_params_t *params,
     tl_perf->sys_latency        = 0;
     tl_perf->min_length         = ucs_max(params->min_length, tl_min_frag);
     tl_perf->max_frag           = tl_max_frag;
-    tl_perf->opt_zcopy_align    =
+    tl_perf->opt_align          =
         ucp_proto_common_get_iface_attr_field(&wiface->attr,
-                                              params->opt_zcopy_align_offs, 1);
+                                              params->opt_align_offs, 1);
 
     ucp_proto_common_lane_perf_node(context, rsc_index, &perf_attr,
                                     &lane_perf_node);

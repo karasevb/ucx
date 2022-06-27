@@ -50,7 +50,7 @@ typedef struct {
     uint32_t                     weight_sum;
 
     /* Optimal alignment for zero-copy buffer address */
-    size_t                       opt_zcopy_align;
+    size_t                       opt_align;
 } ucp_proto_multi_lane_priv_t;
 
 
@@ -63,9 +63,8 @@ typedef struct {
     size_t                      max_frag_sum; /* 'max_frag' sum of all lanes */
     ucp_lane_map_t              lane_map;     /* Map of used lanes */
     ucp_lane_index_t            num_lanes;    /* Number of lanes to use */
-    size_t                      align_thresh; /* Cached value of threshold
-                                                 for enabling RNDV data split
-                                                 alignment */
+    size_t                      align_thresh; /* Cached value of threshold for
+                                                 enabling data split alignment */
     ucp_proto_multi_lane_priv_t lanes[0];     /* Array of lanes */
 } ucp_proto_multi_priv_t;
 

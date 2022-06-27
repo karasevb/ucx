@@ -494,6 +494,7 @@ ucp_proto_rndv_bulk_init(const ucp_proto_multi_init_params_t *init_params,
         return status;
     }
 
+    /* Adjust align split threshold by user configuration */
     mpriv->align_thresh = ucs_max(rndv_align_thresh,
                                   mpriv->align_thresh + mpriv->min_frag);
 

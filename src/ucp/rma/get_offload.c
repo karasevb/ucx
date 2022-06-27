@@ -74,30 +74,31 @@ ucp_proto_get_offload_bcopy_init(const ucp_proto_init_params_t *init_params)
 {
     ucp_context_t *context               = init_params->worker->context;
     ucp_proto_multi_init_params_t params = {
-        .super.super         = *init_params,
-        .super.latency       = 0,
-        .super.overhead      = 0,
-        .super.cfg_thresh    = context->config.ext.bcopy_thresh,
-        .super.cfg_priority  = 20,
-        .super.min_length    = 0,
-        .super.max_length    = SIZE_MAX,
-        .super.min_iov       = 0,
-        .super.min_frag_offs = UCP_PROTO_COMMON_OFFSET_INVALID,
-        .super.max_frag_offs = ucs_offsetof(uct_iface_attr_t,
-                                            cap.get.max_bcopy),
-        .super.max_iov_offs  = UCP_PROTO_COMMON_OFFSET_INVALID,
-        .super.hdr_size      = 0,
-        .super.send_op       = UCT_EP_OP_GET_BCOPY,
-        .super.memtype_op    = UCT_EP_OP_LAST,
-        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_RECV_ZCOPY |
-                               UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS |
-                               UCP_PROTO_COMMON_INIT_FLAG_RESPONSE,
-        .max_lanes           = 1,
-        .initial_reg_md_map  = 0,
-        .first.tl_cap_flags  = UCT_IFACE_FLAG_GET_BCOPY,
-        .first.lane_type     = UCP_LANE_TYPE_RMA,
-        .middle.tl_cap_flags = UCT_IFACE_FLAG_GET_BCOPY,
-        .middle.lane_type    = UCP_LANE_TYPE_RMA,
+        .super.super          = *init_params,
+        .super.latency        = 0,
+        .super.overhead       = 0,
+        .super.cfg_thresh     = context->config.ext.bcopy_thresh,
+        .super.cfg_priority   = 20,
+        .super.min_length     = 0,
+        .super.max_length     = SIZE_MAX,
+        .super.min_iov        = 0,
+        .super.min_frag_offs  = UCP_PROTO_COMMON_OFFSET_INVALID,
+        .super.max_frag_offs  = ucs_offsetof(uct_iface_attr_t,
+                                             cap.get.max_bcopy),
+        .super.max_iov_offs   = UCP_PROTO_COMMON_OFFSET_INVALID,
+        .super.hdr_size       = 0,
+        .super.send_op        = UCT_EP_OP_GET_BCOPY,
+        .super.memtype_op     = UCT_EP_OP_LAST,
+        .super.flags          = UCP_PROTO_COMMON_INIT_FLAG_RECV_ZCOPY |
+                                UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS |
+                                UCP_PROTO_COMMON_INIT_FLAG_RESPONSE,
+        .super.opt_align_offs = UCP_PROTO_COMMON_OFFSET_INVALID,
+        .max_lanes            = 1,
+        .initial_reg_md_map   = 0,
+        .first.tl_cap_flags   = UCT_IFACE_FLAG_GET_BCOPY,
+        .first.lane_type      = UCP_LANE_TYPE_RMA,
+        .middle.tl_cap_flags  = UCT_IFACE_FLAG_GET_BCOPY,
+        .middle.lane_type     = UCP_LANE_TYPE_RMA,
     };
 
     UCP_RMA_PROTO_INIT_CHECK(init_params, UCP_OP_ID_GET);
@@ -158,33 +159,34 @@ ucp_proto_get_offload_zcopy_init(const ucp_proto_init_params_t *init_params)
 {
     ucp_context_t *context               = init_params->worker->context;
     ucp_proto_multi_init_params_t params = {
-        .super.super         = *init_params,
-        .super.latency       = 0,
-        .super.overhead      = 0,
-        .super.cfg_thresh    = context->config.ext.zcopy_thresh,
-        .super.cfg_priority  = 30,
-        .super.min_length    = 0,
-        .super.max_length    = SIZE_MAX,
-        .super.min_iov       = 1,
-        .super.min_frag_offs = ucs_offsetof(uct_iface_attr_t,
-                                            cap.get.min_zcopy),
-        .super.max_frag_offs = ucs_offsetof(uct_iface_attr_t,
-                                            cap.get.max_zcopy),
-        .super.max_iov_offs  = ucs_offsetof(uct_iface_attr_t, cap.get.max_iov),
-        .super.hdr_size      = 0,
-        .super.send_op       = UCT_EP_OP_GET_ZCOPY,
-        .super.memtype_op    = UCT_EP_OP_LAST,
-        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY |
-                               UCP_PROTO_COMMON_INIT_FLAG_RECV_ZCOPY |
-                               UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS |
-                               UCP_PROTO_COMMON_INIT_FLAG_RESPONSE |
-                               UCP_PROTO_COMMON_INIT_FLAG_MIN_FRAG,
-        .max_lanes           = 1,
-        .initial_reg_md_map  = 0,
-        .first.tl_cap_flags  = UCT_IFACE_FLAG_GET_ZCOPY,
-        .first.lane_type     = UCP_LANE_TYPE_RMA,
-        .middle.tl_cap_flags = UCT_IFACE_FLAG_GET_ZCOPY,
-        .middle.lane_type    = UCP_LANE_TYPE_RMA
+        .super.super          = *init_params,
+        .super.latency        = 0,
+        .super.overhead       = 0,
+        .super.cfg_thresh     = context->config.ext.zcopy_thresh,
+        .super.cfg_priority   = 30,
+        .super.min_length     = 0,
+        .super.max_length     = SIZE_MAX,
+        .super.min_iov        = 1,
+        .super.min_frag_offs  = ucs_offsetof(uct_iface_attr_t,
+                                             cap.get.min_zcopy),
+        .super.max_frag_offs  = ucs_offsetof(uct_iface_attr_t,
+                                             cap.get.max_zcopy),
+        .super.max_iov_offs   = ucs_offsetof(uct_iface_attr_t, cap.get.max_iov),
+        .super.hdr_size       = 0,
+        .super.send_op        = UCT_EP_OP_GET_ZCOPY,
+        .super.memtype_op     = UCT_EP_OP_LAST,
+        .super.flags          = UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY |
+                                UCP_PROTO_COMMON_INIT_FLAG_RECV_ZCOPY |
+                                UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS |
+                                UCP_PROTO_COMMON_INIT_FLAG_RESPONSE |
+                                UCP_PROTO_COMMON_INIT_FLAG_MIN_FRAG,
+        .super.opt_align_offs = UCP_PROTO_COMMON_OFFSET_INVALID,
+        .max_lanes            = 1,
+        .initial_reg_md_map   = 0,
+        .first.tl_cap_flags   = UCT_IFACE_FLAG_GET_ZCOPY,
+        .first.lane_type      = UCP_LANE_TYPE_RMA,
+        .middle.tl_cap_flags  = UCT_IFACE_FLAG_GET_ZCOPY,
+        .middle.lane_type     = UCP_LANE_TYPE_RMA
     };
 
     UCP_RMA_PROTO_INIT_CHECK(init_params, UCP_OP_ID_GET);

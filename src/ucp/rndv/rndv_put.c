@@ -214,34 +214,33 @@ ucp_proto_rndv_put_common_init(const ucp_proto_init_params_t *init_params,
     ucp_context_t *context               = init_params->worker->context;
     ucp_proto_rndv_put_priv_t *rpriv     = init_params->priv;
     ucp_proto_multi_init_params_t params = {
-        .super.super                = *init_params,
-        .super.overhead             = 0,
-        .super.latency              = 0,
-        .super.cfg_thresh           = ucp_proto_rndv_cfg_thresh(context, rndv_modes),
-        .super.cfg_priority         = 0,
-        .super.min_length           = 0,
-        .super.max_length           = max_length,
-        .super.min_iov              = 1,
-        .super.min_frag_offs        = ucs_offsetof(uct_iface_attr_t,
-                                            cap.put.min_zcopy),
-        .super.max_frag_offs        = ucs_offsetof(uct_iface_attr_t,
-                                            cap.put.max_zcopy),
-        .super.max_iov_offs         = ucs_offsetof(uct_iface_attr_t,
-                                                   cap.put.max_iov),
-        .super.opt_zcopy_align_offs = ucs_offsetof(uct_iface_attr_t,
-                                                   cap.put.opt_zcopy_align),
-        .super.hdr_size             = 0,
-        .super.send_op              = UCT_EP_OP_PUT_ZCOPY,
-        .super.memtype_op           = memtype_op,
-        .super.flags                = flags |
-                                    UCP_PROTO_COMMON_INIT_FLAG_RECV_ZCOPY |
-                                    UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS,
-        .max_lanes                  = context->config.ext.max_rndv_lanes,
-        .initial_reg_md_map         = initial_reg_md_map,
-        .first.tl_cap_flags         = UCT_IFACE_FLAG_PUT_ZCOPY,
-        .first.lane_type            = UCP_LANE_TYPE_RMA_BW,
-        .middle.tl_cap_flags        = UCT_IFACE_FLAG_PUT_ZCOPY,
-        .middle.lane_type           = UCP_LANE_TYPE_RMA_BW,
+        .super.super          = *init_params,
+        .super.overhead       = 0,
+        .super.latency        = 0,
+        .super.cfg_thresh     = ucp_proto_rndv_cfg_thresh(context, rndv_modes),
+        .super.cfg_priority   = 0,
+        .super.min_length     = 0,
+        .super.max_length     = max_length,
+        .super.min_iov        = 1,
+        .super.min_frag_offs  = ucs_offsetof(uct_iface_attr_t,
+                                             cap.put.min_zcopy),
+        .super.max_frag_offs  = ucs_offsetof(uct_iface_attr_t,
+                                             cap.put.max_zcopy),
+        .super.max_iov_offs   = ucs_offsetof(uct_iface_attr_t, cap.put.max_iov),
+        .super.opt_align_offs = ucs_offsetof(uct_iface_attr_t,
+                                             cap.put.opt_zcopy_align),
+        .super.hdr_size       = 0,
+        .super.send_op        = UCT_EP_OP_PUT_ZCOPY,
+        .super.memtype_op     = memtype_op,
+        .super.flags          = flags |
+                                UCP_PROTO_COMMON_INIT_FLAG_RECV_ZCOPY |
+                                UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS,
+        .max_lanes            = context->config.ext.max_rndv_lanes,
+        .initial_reg_md_map   = initial_reg_md_map,
+        .first.tl_cap_flags   = UCT_IFACE_FLAG_PUT_ZCOPY,
+        .first.lane_type      = UCP_LANE_TYPE_RMA_BW,
+        .middle.tl_cap_flags  = UCT_IFACE_FLAG_PUT_ZCOPY,
+        .middle.lane_type     = UCP_LANE_TYPE_RMA_BW,
     };
     const uct_iface_attr_t *iface_attr;
     ucp_lane_index_t lane_idx, lane;
@@ -362,8 +361,8 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_rndv_put_zcopy_send_func(
                                1);
     status = ucp_proto_rndv_put_common_send(req, lpriv, &iov,
                                             &req->send.state.uct_comp);
-    ucp_proto_multi_req_send_lane_shift(req, rpriv->bulk.mpriv.num_lanes,
-                                        lane_shift);
+    ucp_proto_multi_advance_lane_idx(req, rpriv->bulk.mpriv.num_lanes,
+                                     lane_shift);
 
     return status;
 }
@@ -373,14 +372,12 @@ ucp_proto_rndv_put_zcopy_send_progress(uct_pending_req_t *uct_req)
 {
     ucp_request_t *req = ucs_container_of(uct_req, ucp_request_t, send.uct);
     const ucp_proto_rndv_put_priv_t *rpriv = req->send.proto_config->priv;
-    ucp_lane_index_t lane_shift;
 
-    return ucp_proto_multi_zcopy_progress_custom_lane(
+    return ucp_proto_multi_zcopy_progress(
             req, &rpriv->bulk.mpriv, ucp_proto_rndv_put_common_request_init,
             UCT_MD_MEM_ACCESS_LOCAL_READ, UCS_BIT(UCP_DATATYPE_CONTIG),
             ucp_proto_rndv_put_zcopy_send_func,
-            ucp_proto_rndv_put_common_data_sent, rpriv->put_comp_cb,
-            &lane_shift);
+            ucp_proto_rndv_put_common_data_sent, rpriv->put_comp_cb);
 }
 
 static void ucp_proto_rndv_put_zcopy_completion(uct_completion_t *uct_comp)
