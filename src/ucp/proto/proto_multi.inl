@@ -121,17 +121,12 @@ static UCS_F_ALWAYS_INLINE void
 ucp_proto_multi_advance_lane_idx(ucp_request_t *req, ucp_lane_index_t num_lanes,
                                  ucp_lane_index_t lane_shift)
 {
-    ucp_lane_index_t lane_idx;
-
     ucs_assertv(req->send.multi_lane_idx < num_lanes,
                 "req=%p lane_idx=%d num_lanes=%d", req,
                 req->send.multi_lane_idx, num_lanes);
 
-    lane_idx = req->send.multi_lane_idx + !!lane_shift;
-    if (lane_idx >= num_lanes) {
-        lane_idx = 0;
-    }
-    req->send.multi_lane_idx = lane_idx;
+    req->send.multi_lane_idx = (req->send.multi_lane_idx + lane_shift) %
+                               num_lanes;
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t

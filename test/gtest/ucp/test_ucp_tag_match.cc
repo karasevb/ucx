@@ -944,7 +944,7 @@ public:
     enum {
         RNDV_SCHEME_GET_ZCOPY,
         RNDV_SCHEME_PUT_ZCOPY,
-        RNDV_SCHEME_LAST,
+        RNDV_SCHEME_LAST
     };
 
     static const std::string rndv_schemes[];

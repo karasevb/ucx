@@ -152,7 +152,10 @@ ucp_proto_rndv_get_zcopy_send_func(ucp_request_t *req,
                                            iov.length, &iov, 1, &offset);
     status = ucp_proto_rndv_get_common_send(req, lpriv, &iov, offset,
                                             &req->send.state.uct_comp);
-    ucp_proto_multi_advance_lane_idx(req, rpriv->mpriv.num_lanes, lane_shift);
+    if (status == UCS_INPROGRESS) {
+        ucp_proto_multi_advance_lane_idx(req, rpriv->mpriv.num_lanes,
+                                         lane_shift);
+    }
 
     return status;
 }

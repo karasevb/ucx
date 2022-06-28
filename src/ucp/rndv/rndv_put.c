@@ -361,8 +361,10 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_rndv_put_zcopy_send_func(
                                1);
     status = ucp_proto_rndv_put_common_send(req, lpriv, &iov,
                                             &req->send.state.uct_comp);
-    ucp_proto_multi_advance_lane_idx(req, rpriv->bulk.mpriv.num_lanes,
-                                     lane_shift);
+    if (status == UCS_INPROGRESS) {
+        ucp_proto_multi_advance_lane_idx(req, rpriv->bulk.mpriv.num_lanes,
+                                         lane_shift);
+    }
 
     return status;
 }
