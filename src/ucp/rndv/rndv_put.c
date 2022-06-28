@@ -373,7 +373,7 @@ ucp_proto_rndv_put_zcopy_send_progress(uct_pending_req_t *uct_req)
     ucp_request_t *req = ucs_container_of(uct_req, ucp_request_t, send.uct);
     const ucp_proto_rndv_put_priv_t *rpriv = req->send.proto_config->priv;
 
-    return ucp_proto_multi_zcopy_progress(
+    return ucp_proto_multi_zcopy_progress_custom_lane(
             req, &rpriv->bulk.mpriv, ucp_proto_rndv_put_common_request_init,
             UCT_MD_MEM_ACCESS_LOCAL_READ, UCS_BIT(UCP_DATATYPE_CONTIG),
             ucp_proto_rndv_put_zcopy_send_func,

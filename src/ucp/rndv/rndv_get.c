@@ -166,7 +166,7 @@ ucp_proto_rndv_get_zcopy_fetch_progress(uct_pending_req_t *uct_req)
     /* coverity[tainted_data_downcast] */
     const ucp_proto_rndv_bulk_priv_t *rpriv = req->send.proto_config->priv;
 
-    return ucp_proto_multi_zcopy_progress(
+    return ucp_proto_multi_zcopy_progress_custom_lane(
             req, &rpriv->mpriv, ucp_proto_rndv_get_common_request_init,
             UCT_MD_MEM_ACCESS_LOCAL_WRITE, UCS_BIT(UCP_DATATYPE_CONTIG),
             ucp_proto_rndv_get_zcopy_send_func,

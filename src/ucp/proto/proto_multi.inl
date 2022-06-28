@@ -194,7 +194,8 @@ ucp_proto_multi_bcopy_progress(ucp_request_t *req,
     return ucp_proto_multi_progress(req, mpriv, send_func, comp_func, UINT_MAX);
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_zcopy_progress(
+static UCS_F_ALWAYS_INLINE ucs_status_t
+ucp_proto_multi_zcopy_progress_custom_lane(
         ucp_request_t *req, const ucp_proto_multi_priv_t *mpriv,
         ucp_proto_init_cb_t init_func, unsigned uct_mem_flags, unsigned dt_mask,
         ucp_proto_send_multi_cb_t send_func,
@@ -220,8 +221,24 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_zcopy_progress(
         req->flags |= UCP_REQUEST_FLAG_PROTO_INITIALIZED;
     }
 
-    status = ucp_proto_multi_progress(req, mpriv, send_func, complete_func,
-                                      dt_mask);
+    return ucp_proto_multi_progress(req, mpriv, send_func, complete_func,
+                                    dt_mask);
+}
+
+static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_zcopy_progress(
+        ucp_request_t *req, const ucp_proto_multi_priv_t *mpriv,
+        ucp_proto_init_cb_t init_func, unsigned uct_mem_flags, unsigned dt_mask,
+        ucp_proto_send_multi_cb_t send_func,
+        ucp_proto_complete_cb_t complete_func,
+        uct_completion_callback_t uct_comp_cb)
+{
+    ucs_status_t status;
+
+    status = ucp_proto_multi_zcopy_progress_custom_lane(req, mpriv, init_func,
+                                                        uct_mem_flags, dt_mask,
+                                                        send_func,
+                                                        complete_func,
+                                                        uct_comp_cb);
     if (status == UCS_INPROGRESS) {
         /* move to the next lane, in a round-robin fashion */
         ucp_proto_multi_advance_lane_idx(req, mpriv->num_lanes, 1);
