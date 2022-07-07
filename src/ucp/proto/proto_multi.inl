@@ -136,6 +136,7 @@ ucp_proto_multi_progress(ucp_request_t *req,
                          ucp_proto_complete_cb_t complete_func,
                          unsigned dt_mask)
 {
+    ucp_lane_index_t lane_shift = 1;
     const ucp_proto_multi_lane_priv_t *lpriv;
     ucp_datatype_iter_t next_iter;
     ucp_lane_index_t lane_idx;
@@ -149,7 +150,7 @@ ucp_proto_multi_progress(ucp_request_t *req,
     lpriv    = &mpriv->lanes[lane_idx];
 
     /* send the next fragment */
-    status = send_func(req, lpriv, &next_iter);
+    status = send_func(req, lpriv, &next_iter, &lane_shift);
     if (ucs_likely(status == UCS_OK)) {
         /* fast path is OK */
     } else if (status == UCS_INPROGRESS) {
@@ -166,6 +167,9 @@ ucp_proto_multi_progress(ucp_request_t *req,
     if (ucp_datatype_iter_is_end(&req->send.state.dt_iter)) {
         return complete_func(req);
     }
+
+    /* move to the next lane, in a round-robin fashion */
+    ucp_proto_multi_advance_lane_idx(req, mpriv->num_lanes, lane_shift);
 
     return UCS_INPROGRESS;
 }
@@ -189,8 +193,7 @@ ucp_proto_multi_bcopy_progress(ucp_request_t *req,
     return ucp_proto_multi_progress(req, mpriv, send_func, comp_func, UINT_MAX);
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t
-ucp_proto_multi_zcopy_progress_custom_lane(
+static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_zcopy_progress(
         ucp_request_t *req, const ucp_proto_multi_priv_t *mpriv,
         ucp_proto_init_cb_t init_func, unsigned uct_mem_flags, unsigned dt_mask,
         ucp_proto_send_multi_cb_t send_func,
@@ -218,28 +221,6 @@ ucp_proto_multi_zcopy_progress_custom_lane(
 
     return ucp_proto_multi_progress(req, mpriv, send_func, complete_func,
                                     dt_mask);
-}
-
-static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_multi_zcopy_progress(
-        ucp_request_t *req, const ucp_proto_multi_priv_t *mpriv,
-        ucp_proto_init_cb_t init_func, unsigned uct_mem_flags, unsigned dt_mask,
-        ucp_proto_send_multi_cb_t send_func,
-        ucp_proto_complete_cb_t complete_func,
-        uct_completion_callback_t uct_comp_cb)
-{
-    ucs_status_t status;
-
-    status = ucp_proto_multi_zcopy_progress_custom_lane(req, mpriv, init_func,
-                                                        uct_mem_flags, dt_mask,
-                                                        send_func,
-                                                        complete_func,
-                                                        uct_comp_cb);
-    if (status == UCS_INPROGRESS) {
-        /* move to the next lane, in a round-robin fashion */
-        ucp_proto_multi_advance_lane_idx(req, mpriv->num_lanes, 1);
-    }
-
-    return status;
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t

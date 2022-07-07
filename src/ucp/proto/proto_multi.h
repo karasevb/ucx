@@ -103,7 +103,7 @@ typedef struct {
 
 typedef ucs_status_t (*ucp_proto_send_multi_cb_t)(
                 ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-                ucp_datatype_iter_t *next_iter);
+                ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift);
 
 
 /**

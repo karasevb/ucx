@@ -345,26 +345,21 @@ ucp_proto_rndv_put_common_query(const ucp_proto_query_params_t *params,
 
 static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_rndv_put_zcopy_send_func(
         ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-        ucp_datatype_iter_t *next_iter)
+        ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift)
 {
     const ucp_proto_rndv_put_priv_t *rpriv = req->send.proto_config->priv;
-    ucp_lane_index_t lane_shift;
     size_t max_payload;
     uct_iov_t iov;
     ucs_status_t status;
 
     max_payload = ucp_proto_rndv_bulk_max_payload_align(req, &rpriv->bulk,
-                                                        lpriv, &lane_shift);
+                                                        lpriv, lane_shift);
     ucp_datatype_iter_next_iov(&req->send.state.dt_iter, max_payload,
                                lpriv->super.md_index,
                                UCS_BIT(UCP_DATATYPE_CONTIG), next_iter, &iov,
                                1);
     status = ucp_proto_rndv_put_common_send(req, lpriv, &iov,
                                             &req->send.state.uct_comp);
-    if (status == UCS_INPROGRESS) {
-        ucp_proto_multi_advance_lane_idx(req, rpriv->bulk.mpriv.num_lanes,
-                                         lane_shift);
-    }
 
     return status;
 }
@@ -375,7 +370,7 @@ ucp_proto_rndv_put_zcopy_send_progress(uct_pending_req_t *uct_req)
     ucp_request_t *req = ucs_container_of(uct_req, ucp_request_t, send.uct);
     const ucp_proto_rndv_put_priv_t *rpriv = req->send.proto_config->priv;
 
-    return ucp_proto_multi_zcopy_progress_custom_lane(
+    return ucp_proto_multi_zcopy_progress(
             req, &rpriv->bulk.mpriv, ucp_proto_rndv_put_common_request_init,
             UCT_MD_MEM_ACCESS_LOCAL_READ, UCS_BIT(UCP_DATATYPE_CONTIG),
             ucp_proto_rndv_put_zcopy_send_func,
@@ -444,7 +439,7 @@ static void ucp_proto_rndv_put_mtype_pack_completion(uct_completion_t *uct_comp)
 
 static UCS_F_ALWAYS_INLINE ucs_status_t ucp_proto_rndv_put_mtype_send_func(
         ucp_request_t *req, const ucp_proto_multi_lane_priv_t *lpriv,
-        ucp_datatype_iter_t *next_iter)
+        ucp_datatype_iter_t *next_iter, ucp_lane_index_t *lane_shift)
 {
     const ucp_proto_rndv_put_priv_t *rpriv = req->send.proto_config->priv;
     uct_iov_t iov;
