@@ -64,12 +64,6 @@ public:
         return get_variant_value() == RECV_REQ_EXTERNAL;
     }
 
-    void request_wait(request *req)
-    {
-        wait(req);
-        request_free(req);
-    }
-
 protected:
     void test_iov(const size_t *iov_sizes, size_t iov_count);
 
@@ -1011,7 +1005,8 @@ UCS_TEST_P(test_ucp_tag_match_rndv_align, recv_align)
 
             ucs::fill_random(sendbuf);
             send_b(&sendbuf[0], size, DATATYPE, 0x111337);
-            request_wait(ucx_req);
+            wait(ucx_req);
+            request_free(ucx_req);
 
             std::vector<char> recvbuf_offs(&recvbuf[offset],
                                            &recvbuf[offset+size]);

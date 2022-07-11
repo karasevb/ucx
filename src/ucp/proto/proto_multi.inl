@@ -12,6 +12,19 @@
 #include <ucp/proto/proto_common.inl>
 
 
+static UCS_F_ALWAYS_INLINE size_t
+ucp_proto_multi_get_lane_opt_align(const ucp_proto_multi_init_params_t *params,
+                                   ucp_lane_index_t lane)
+{
+    ucp_worker_h worker        = params->super.super.worker;
+    ucp_rsc_index_t rsc_index  = ucp_proto_common_get_rsc_index(&params->super.super,
+                                                                lane);
+    ucp_worker_iface_t *wiface = ucp_worker_iface(worker, rsc_index);
+
+    return ucp_proto_common_get_iface_attr_field(&wiface->attr,
+                                                 params->opt_align_offs, 1);
+}
+
 static UCS_F_ALWAYS_INLINE void
 ucp_proto_multi_set_send_lane(ucp_request_t *req)
 {
@@ -121,12 +134,17 @@ static UCS_F_ALWAYS_INLINE void
 ucp_proto_multi_advance_lane_idx(ucp_request_t *req, ucp_lane_index_t num_lanes,
                                  ucp_lane_index_t lane_shift)
 {
+    ucp_lane_index_t lane_idx;
+
     ucs_assertv(req->send.multi_lane_idx < num_lanes,
                 "req=%p lane_idx=%d num_lanes=%d", req,
                 req->send.multi_lane_idx, num_lanes);
 
-    req->send.multi_lane_idx = (req->send.multi_lane_idx + lane_shift) %
-                               num_lanes;
+    lane_idx = req->send.multi_lane_idx + lane_shift;
+    if (lane_idx >= num_lanes) {
+        lane_idx = 0;
+    }
+    req->send.multi_lane_idx = lane_idx;
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t

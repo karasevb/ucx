@@ -70,6 +70,8 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
             return status;
         }
 
+        lane_perf->opt_align = ucp_proto_multi_get_lane_opt_align(params, lane);
+
         /* Calculate maximal bandwidth of all lanes, to skip slow lanes */
         max_bandwidth = ucs_max(max_bandwidth, lane_perf->bandwidth);
     }

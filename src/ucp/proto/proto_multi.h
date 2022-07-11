@@ -88,6 +88,11 @@ typedef struct {
         /* Required lane type */
         ucp_lane_type_t lane_type;
     } first, middle;
+
+    /* Offset in uct_iface_attr_t structure of the field which specifies the
+     * optimal alignment for buffer address for the UCT operation used
+     * by this protocol */
+    ptrdiff_t               opt_align_offs;
 } ucp_proto_multi_init_params_t;
 
 

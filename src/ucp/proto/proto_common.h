@@ -97,11 +97,6 @@ typedef struct {
      * protocol */
     ptrdiff_t               max_iov_offs;
 
-    /* Offset in uct_iface_attr_t structure of the field which specifies the
-     * optimal alignment for buffer address for the UCT operation used
-     * by this protocol */
-    ptrdiff_t               opt_align_offs;
-
     /* Header size on the first lane */
     size_t                  hdr_size;
 
@@ -179,6 +174,10 @@ typedef void (*ucp_proto_init_cb_t)(ucp_request_t *req);
  */
 typedef ucs_status_t (*ucp_proto_complete_cb_t)(ucp_request_t *req);
 
+
+ucp_rsc_index_t
+ucp_proto_common_get_rsc_index(const ucp_proto_init_params_t *params,
+                               ucp_lane_index_t lane);
 
 void ucp_proto_common_lane_priv_init(const ucp_proto_common_init_params_t *params,
                                      ucp_md_map_t md_map, ucp_lane_index_t lane,

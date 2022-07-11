@@ -92,13 +92,13 @@ ucp_proto_put_am_bcopy_init(const ucp_proto_init_params_t *init_params)
         .super.send_op        = UCT_EP_OP_AM_BCOPY,
         .super.memtype_op     = UCT_EP_OP_GET_SHORT,
         .super.flags          = UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
-        .super.opt_align_offs = UCP_PROTO_COMMON_OFFSET_INVALID,
         .max_lanes            = 1,
         .initial_reg_md_map   = 0,
         .first.tl_cap_flags   = UCT_IFACE_FLAG_AM_BCOPY,
         .first.lane_type      = UCP_LANE_TYPE_AM,
         .middle.tl_cap_flags  = UCT_IFACE_FLAG_AM_BCOPY,
         .middle.lane_type     = UCP_LANE_TYPE_AM,
+        .opt_align_offs       = UCP_PROTO_COMMON_OFFSET_INVALID
     };
 
     UCP_RMA_PROTO_INIT_CHECK(init_params, UCP_OP_ID_PUT);

@@ -293,8 +293,6 @@ ucp_proto_rndv_bulk_max_payload_align(ucp_request_t *req,
                 "dt_class=%d (%s)", req->send.state.dt_iter.dt_class,
                 ucp_datatype_class_names[req->send.state.dt_iter.dt_class]);
 
-    *lane_shift = 1;
-
     max_payload = ucp_proto_rndv_bulk_max_payload(req, rpriv, lpriv);
     if (max_payload < align_thresh) {
         return max_payload;

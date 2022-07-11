@@ -93,13 +93,13 @@ ucp_proto_get_offload_bcopy_init(const ucp_proto_init_params_t *init_params)
         .super.flags          = UCP_PROTO_COMMON_INIT_FLAG_RECV_ZCOPY |
                                 UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS |
                                 UCP_PROTO_COMMON_INIT_FLAG_RESPONSE,
-        .super.opt_align_offs = UCP_PROTO_COMMON_OFFSET_INVALID,
         .max_lanes            = 1,
         .initial_reg_md_map   = 0,
         .first.tl_cap_flags   = UCT_IFACE_FLAG_GET_BCOPY,
         .first.lane_type      = UCP_LANE_TYPE_RMA,
         .middle.tl_cap_flags  = UCT_IFACE_FLAG_GET_BCOPY,
         .middle.lane_type     = UCP_LANE_TYPE_RMA,
+        .opt_align_offs       = UCP_PROTO_COMMON_OFFSET_INVALID
     };
 
     UCP_RMA_PROTO_INIT_CHECK(init_params, UCP_OP_ID_GET);
@@ -182,13 +182,13 @@ ucp_proto_get_offload_zcopy_init(const ucp_proto_init_params_t *init_params)
                                 UCP_PROTO_COMMON_INIT_FLAG_REMOTE_ACCESS |
                                 UCP_PROTO_COMMON_INIT_FLAG_RESPONSE |
                                 UCP_PROTO_COMMON_INIT_FLAG_MIN_FRAG,
-        .super.opt_align_offs = UCP_PROTO_COMMON_OFFSET_INVALID,
         .max_lanes            = 1,
         .initial_reg_md_map   = 0,
         .first.tl_cap_flags   = UCT_IFACE_FLAG_GET_ZCOPY,
         .first.lane_type      = UCP_LANE_TYPE_RMA,
         .middle.tl_cap_flags  = UCT_IFACE_FLAG_GET_ZCOPY,
-        .middle.lane_type     = UCP_LANE_TYPE_RMA
+        .middle.lane_type     = UCP_LANE_TYPE_RMA,
+        .opt_align_offs       = UCP_PROTO_COMMON_OFFSET_INVALID
     };
 
     UCP_RMA_PROTO_INIT_CHECK(init_params, UCP_OP_ID_GET);
