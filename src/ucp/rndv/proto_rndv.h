@@ -69,7 +69,7 @@ typedef struct {
      * Must be the last element in this struct, since it's variable-size and
      * ends with a zero-size array.
      */
-    ucp_proto_multi_priv_t    mpriv;
+    ucp_proto_multi_priv_t mpriv;
 } ucp_proto_rndv_bulk_priv_t;
 
 

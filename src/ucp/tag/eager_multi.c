@@ -59,23 +59,23 @@ static ucs_status_t ucp_proto_eager_bcopy_multi_common_init(
 {
     ucp_context_t *context               = init_params->worker->context;
     ucp_proto_multi_init_params_t params = {
-        .super.super          = *init_params,
-        .super.cfg_thresh     = context->config.ext.bcopy_thresh,
-        .super.cfg_priority   = 20,
-        .super.min_length     = 0,
-        .super.max_length     = SIZE_MAX,
-        .super.min_iov        = 0,
-        .super.min_frag_offs  = UCP_PROTO_COMMON_OFFSET_INVALID,
-        .super.max_frag_offs  = ucs_offsetof(uct_iface_attr_t,
-                                             cap.am.max_bcopy),
-        .super.max_iov_offs   = UCP_PROTO_COMMON_OFFSET_INVALID,
-        .super.hdr_size       = hdr_size,
-        .super.send_op        = UCT_EP_OP_AM_BCOPY,
-        .super.memtype_op     = UCT_EP_OP_GET_SHORT,
-        .super.flags          = UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
-        .opt_align_offs       = UCP_PROTO_COMMON_OFFSET_INVALID,
-        .first.tl_cap_flags   = UCT_IFACE_FLAG_AM_BCOPY,
-        .middle.tl_cap_flags  = UCT_IFACE_FLAG_AM_BCOPY
+        .super.super         = *init_params,
+        .super.cfg_thresh    = context->config.ext.bcopy_thresh,
+        .super.cfg_priority  = 20,
+        .super.min_length    = 0,
+        .super.max_length    = SIZE_MAX,
+        .super.min_iov       = 0,
+        .super.min_frag_offs = UCP_PROTO_COMMON_OFFSET_INVALID,
+        .super.max_frag_offs = ucs_offsetof(uct_iface_attr_t,
+                                            cap.am.max_bcopy),
+        .super.max_iov_offs  = UCP_PROTO_COMMON_OFFSET_INVALID,
+        .super.hdr_size      = hdr_size,
+        .super.send_op       = UCT_EP_OP_AM_BCOPY,
+        .super.memtype_op    = UCT_EP_OP_GET_SHORT,
+        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
+        .opt_align_offs      = UCP_PROTO_COMMON_OFFSET_INVALID,
+        .first.tl_cap_flags  = UCT_IFACE_FLAG_AM_BCOPY,
+        .middle.tl_cap_flags = UCT_IFACE_FLAG_AM_BCOPY
     };
 
     return ucp_proto_eager_multi_init_common(&params, op_id);
@@ -223,25 +223,25 @@ ucp_proto_eager_zcopy_multi_init(const ucp_proto_init_params_t *init_params)
 {
     ucp_context_t *context               = init_params->worker->context;
     ucp_proto_multi_init_params_t params = {
-        .super.super          = *init_params,
-        .super.cfg_thresh     = context->config.ext.zcopy_thresh,
-        .super.cfg_priority   = 30,
-        .super.min_length     = 0,
-        .super.max_length     = SIZE_MAX,
-        .super.min_iov        = 1,
-        .super.min_frag_offs  = ucs_offsetof(uct_iface_attr_t,
-                                             cap.am.min_zcopy),
-        .super.max_frag_offs  = ucs_offsetof(uct_iface_attr_t,
-                                             cap.am.max_zcopy),
-        .super.max_iov_offs   = ucs_offsetof(uct_iface_attr_t, cap.am.max_iov),
-        .super.hdr_size       = sizeof(ucp_eager_first_hdr_t),
-        .super.send_op        = UCT_EP_OP_AM_ZCOPY,
-        .super.memtype_op     = UCT_EP_OP_LAST,
-        .super.flags          = UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY |
-                                UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
-        .opt_align_offs       = UCP_PROTO_COMMON_OFFSET_INVALID,
-        .first.tl_cap_flags   = UCT_IFACE_FLAG_AM_ZCOPY,
-        .middle.tl_cap_flags  = UCT_IFACE_FLAG_AM_ZCOPY
+        .super.super         = *init_params,
+        .super.cfg_thresh    = context->config.ext.zcopy_thresh,
+        .super.cfg_priority  = 30,
+        .super.min_length    = 0,
+        .super.max_length    = SIZE_MAX,
+        .super.min_iov       = 1,
+        .super.min_frag_offs = ucs_offsetof(uct_iface_attr_t,
+                                            cap.am.min_zcopy),
+        .super.max_frag_offs = ucs_offsetof(uct_iface_attr_t,
+                                            cap.am.max_zcopy),
+        .super.max_iov_offs  = ucs_offsetof(uct_iface_attr_t, cap.am.max_iov),
+        .super.hdr_size      = sizeof(ucp_eager_first_hdr_t),
+        .super.send_op       = UCT_EP_OP_AM_ZCOPY,
+        .super.memtype_op    = UCT_EP_OP_LAST,
+        .super.flags         = UCP_PROTO_COMMON_INIT_FLAG_SEND_ZCOPY |
+                               UCP_PROTO_COMMON_INIT_FLAG_CAP_SEG_SIZE,
+        .opt_align_offs      = UCP_PROTO_COMMON_OFFSET_INVALID,
+        .first.tl_cap_flags  = UCT_IFACE_FLAG_AM_ZCOPY,
+        .middle.tl_cap_flags = UCT_IFACE_FLAG_AM_ZCOPY
     };
 
     return ucp_proto_eager_multi_init_common(&params, UCP_OP_ID_TAG_SEND);
