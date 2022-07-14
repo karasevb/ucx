@@ -255,7 +255,6 @@ static void ucp_proto_common_tl_perf_reset(ucp_proto_common_tl_perf_t *tl_perf)
     tl_perf->sys_latency        = 0;
     tl_perf->min_length         = 0;
     tl_perf->max_frag           = SIZE_MAX;
-    tl_perf->opt_align          = 1;
 }
 
 ucs_status_t

@@ -140,9 +140,6 @@ typedef struct {
 
     /* Maximum single message length */
     size_t max_frag;
-
-    /* Optimal buffer alignment */
-    size_t opt_align;
 } ucp_proto_common_tl_perf_t;
 
 

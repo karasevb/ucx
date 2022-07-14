@@ -70,8 +70,6 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
             return status;
         }
 
-        lane_perf->opt_align = ucp_proto_multi_get_lane_opt_align(params, lane);
-
         /* Calculate maximal bandwidth of all lanes, to skip slow lanes */
         max_bandwidth = ucs_max(max_bandwidth, lane_perf->bandwidth);
     }
@@ -203,7 +201,7 @@ ucs_status_t ucp_proto_multi_init(const ucp_proto_multi_init_params_t *params,
         mpriv->max_frag_sum += lpriv->max_frag;
         lpriv->weight_sum    = weight_sum;
         lpriv->max_frag_sum  = mpriv->max_frag_sum;
-        lpriv->opt_align     = lane_perf->opt_align;
+        lpriv->opt_align     = ucp_proto_multi_get_lane_opt_align(params, lane);
         mpriv->align_thresh  = ucs_max(mpriv->align_thresh,
                                        lpriv->opt_align);
     }

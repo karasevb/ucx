@@ -81,6 +81,12 @@ typedef struct {
     /* MDs on which the buffer is expected to be already registered, so no need
        to account for the overhead of registering on them */
     ucp_md_map_t                   initial_reg_md_map;
+
+    /* Offset in uct_iface_attr_t structure of the field which specifies the
+     * optimal alignment for buffer address for the UCT operation used
+     * by this protocol */
+    ptrdiff_t                      opt_align_offs;
+
     struct {
         /* Required iface capabilities */
         uint64_t        tl_cap_flags;
@@ -88,11 +94,6 @@ typedef struct {
         /* Required lane type */
         ucp_lane_type_t lane_type;
     } first, middle;
-
-    /* Offset in uct_iface_attr_t structure of the field which specifies the
-     * optimal alignment for buffer address for the UCT operation used
-     * by this protocol */
-    ptrdiff_t               opt_align_offs;
 } ucp_proto_multi_init_params_t;
 
 
